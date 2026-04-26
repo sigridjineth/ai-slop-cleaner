@@ -74,16 +74,16 @@ fn detect_language(text: &str) -> &'static str {
 }
 
 /// Check if a pattern should be included given the resolved language.
-fn should_include_pattern(pattern_name: &str, lang: &str) -> bool {
+/// Uses lang_scope field: universal = always, english = en only, korean = ko only.
+fn should_include_pattern(lang_scope: &str, lang: &str) -> bool {
     match lang {
-        "en" => !pattern_name.starts_with("ko_"),
-        "ko" => {
-            // For Korean text, include ko_* patterns + language-neutral patterns
-            // Skip purely English structural patterns that don't start with ko_
-            // but keep a_not_b variants and word-level patterns
-            true
-        }
-        _ => true, // "all" or anything else
+        "all" => true,
+        _ => match lang_scope {
+            "universal" => true,
+            "english" => lang == "en",
+            "korean" => lang == "ko",
+            _ => true, // unknown scope = include by default
+        },
     }
 }
 
@@ -125,7 +125,7 @@ impl Scorer {
 
         // Score structural patterns (filtered by language)
         for pattern in &self.ruleset.patterns {
-            if !should_include_pattern(&pattern.name, resolved_lang) {
+            if !should_include_pattern(&pattern.lang_scope, resolved_lang) {
                 continue;
             }
             for (line_idx, line) in lines.iter().enumerate() {
@@ -199,6 +199,7 @@ mod tests {
         Ruleset {
             patterns: vec![crate::pattern_loader::BannedPattern {
                 name: "test_pattern".to_string(),
+                lang_scope: "universal".to_string(),
                 severity: "high".to_string(),
                 weight: 2.0,
                 regex: Regex::new(r"(?i)\btest\b").unwrap(),
@@ -235,7 +236,7 @@ mod tests {
         let ruleset = Ruleset::load_from_dir("rules").unwrap_or_else(|_| test_ruleset());
         let scorer = Scorer::new(ruleset);
 
-        let result = scorer.score("ì´ê²ì íì¤í¸ê° ìëë¼ ìììëë¤.", "all");
+        let result = scorer.score("이것은 테스트가 아니라 예시입니다.", "all");
         let has_korean_redefinition = result
             .matches
             .iter()
@@ -281,7 +282,7 @@ mod tests {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
-        let korean_text = "ì´ ë¬¸ì ì ìì´ì í´ê²°ì±ì ì°¾ìì¼ í©ëë¤. ì´ê²ì íµí´ ì ì ììµëë¤.";
+        let korean_text = "이 문제에 있어서 해결책을 찾아야 합니다. 이것을 통해 알 수 있습니다.";
         let result = scorer.score(korean_text, "all");
 
         let has_korean_match = result
@@ -297,19 +298,28 @@ mod tests {
         let scorer = Scorer::new(ruleset);
 
         let result = scorer.score("This is a normal English README file.", "en");
-        let has_ko = result.matches.iter().any(|m| m.pattern_name.starts_with("ko_"));
-        assert!(!has_ko, "lang=en should not produce ko_* matches");
+        // With lang=en, korean-scoped patterns should be skipped,
+        // but universal patterns (bold, em dash, bullet block, etc.) should still apply
+        let has_korean_only = result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name.starts_with("ko_A") || m.pattern_name.starts_with("ko_D"));
+        assert!(
+            !has_korean_only,
+            "lang=en should not produce Korean-only pattern matches"
+        );
     }
 
     #[test]
     fn test_lang_auto_english() {
-        let result_lang = super::detect_language("This is a purely English document with no Korean.");
+        let result_lang =
+            super::detect_language("This is a purely English document with no Korean.");
         assert_eq!(result_lang, "en");
     }
 
     #[test]
     fn test_lang_auto_korean() {
-        let result_lang = super::detect_language("ì´ê²ì íêµ­ì´ ë¬¸ììëë¤.");
+        let result_lang = super::detect_language("이것은 한국어 문서입니다.");
         assert_eq!(result_lang, "ko");
     }
 }

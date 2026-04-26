@@ -7,6 +7,7 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct BannedPattern {
     pub name: String,
+    pub lang_scope: String,
     pub severity: String,
     pub weight: f64,
     pub regex: Regex,
@@ -219,6 +220,14 @@ impl Ruleset {
                     }
 
                     let name = map.get("name").cloned().unwrap_or_default();
+                    let lang_scope = map.get("lang scope").cloned().unwrap_or_else(|| {
+                        // Fallback: infer from name prefix for backward compatibility
+                        if name.starts_with("ko_") {
+                            "korean".to_string()
+                        } else {
+                            "english".to_string()
+                        }
+                    });
                     let severity = map.get("severity").cloned().unwrap_or_default();
                     let weight = map
                         .get("weight")
@@ -237,13 +246,17 @@ impl Ruleset {
                     if let Ok(regex) = Regex::new(&regex_str) {
                         patterns.push(BannedPattern {
                             name,
+                            lang_scope,
                             severity,
                             weight,
                             regex,
                             description,
                         });
                     } else {
-                        eprintln!("Warning: Failed to compile regex for pattern '{}': {}", name, regex_str);
+                        eprintln!(
+                            "Warning: Failed to compile regex for pattern '{}': {}",
+                            name, regex_str
+                        );
                     }
                 }
             } else {

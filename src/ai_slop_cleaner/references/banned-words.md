@@ -132,3 +132,58 @@ These make prose sound uncertain and machine-like:
 - "In some cases"
 - "To a certain extent"
 - "By and large"
+
+## im-not-ai Korean AI-tell additions
+
+These entries mirror high-confidence lexical signals from `epoko77-ai/im-not-ai`'s Korean AI-tell taxonomy. They complement structural regexes in `banned_patterns.py`; context-sensitive grammar rules remain there rather than in this lexical table.
+
+### English terms often left untranslated in Korean AI prose
+
+| Banned | Plain replacements |
+|--------|-------------------|
+| pipeline | flow, process, workflow |
+| framework | system, structure, method |
+| scalable | expandable, able to grow |
+| insight | finding, lesson, point |
+| impact | effect, result, consequence |
+
+### Korean signature phrases
+
+| Banned | Plain replacements |
+|--------|-------------------|
+| 결론적으로 | (delete), 그래서 |
+| 요약하면 | (delete), 한 줄로 말하면 |
+| 종합하면 | (delete), 그래서 |
+| 정리하자면 | (delete), 한 줄로 말하면 |
+| 시사하는 바가 크다 | 의미가 있다, 보여준다 |
+| 주목할 만하다 | 눈에 띈다, 중요하다 |
+| 간과할 수 없다 | 놓치면 안 된다 |
+| 무시할 수 없다 | 작지 않다 |
+| 지평을 연다 | 길을 연다, 바꾼다 |
+| 방점을 찍는다 | 강조한다, 마무리한다 |
+| 의미가 적지 않다 | 의미가 있다 |
+| 의미심장하다 | 의미가 있다 |
+| 혁신적인 | 새롭다, 이전과 다르다 |
+| 획기적인 | 새롭다, 큰 변화다 |
+| 전례 없는 | 처음 있는, 드문 |
+| 압도적 | 큰, 우세한 |
+| 막강한 | 강한 |
+| 폭발적 | 빠른, 큰 |
+| 파격적 | 이례적인, 큰 폭의 |
+| 대대적 | 큰 규모의 |
+| 강력한 | 강한 |
+| 치열한 | 거센, 경쟁이 큰 |
+| 뜨거운 | 활발한 |
+| 가능성을 열어준다 | 가능하게 한다 |
+| 새로운 장을 열다 | 새 단계로 넘어가다 |
+| 시대가 도래했다 | 시대가 왔다 |
+
+### Korean over-polish adverbs
+
+| Banned | Plain replacements |
+|--------|-------------------|
+| 매우 | (delete), 아주 |
+| 정말 | (delete), 실제로 |
+| 진짜로 | (delete) |
+| 대단히 | (delete), 크게 |
+| 극히 | (delete), 매우 드물게 |

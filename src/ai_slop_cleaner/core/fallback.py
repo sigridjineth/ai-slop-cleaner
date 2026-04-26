@@ -25,8 +25,7 @@ from ai_slop_cleaner.core.scorer import clip01, score_from_components
 
 BANNED_DENSITY_MAX = 16.0
 STRUCTURAL_DENSITY_MAX = 10.0
-META_DENSITY_MAX = 8.0
-MARKDOWN_DENSITY_MAX = 12.0
+META_DENSITY_MAX = 6.0
 
 WORD_RE = re.compile(r"[\w]+(?:['’][\w]+)*", re.UNICODE)
 SENTENCE_END_RE = re.compile(r"[.!?]+(?:\s+|$)")
@@ -52,6 +51,30 @@ COMMON_ADVERBS = {"very", "more", "most", "often", "also", "then"}
 COMMON_ADJECTIVES = {"good", "bad", "new", "old", "key", "same", "clear"}
 FUNCTION_WORDS = {"a", "an", "the", "of", "to", "in", "for", "with", "and", "or", "but", "is", "are", "was", "were"}
 CONNECTOR_OPENERS = {"furthermore", "moreover", "however", "therefore", "consequently", "additionally", "meanwhile", "overall", "first", "second", "third", "as a result", "in addition", "on the other"}
+KOREAN_CONNECTOR_OPENERS = {
+    "또한",
+    "따라서",
+    "즉",
+    "나아가",
+    "아울러",
+    "게다가",
+    "더욱이",
+    "하지만",
+    "그러나",
+    "먼저",
+    "반면",
+    "결국",
+    "마지막으로",
+}
+KOREAN_SENTENCE_ENDING_RE = re.compile(
+    r"(것이다|뜻이다|의미다|합니다|했습니다|됩니다|됐습니다|한다|했다|된다|됐다|이다|있다|없다|필요하다|중요하다)\s*$"
+)
+QUOTE_EMPHASIS_RE = re.compile(r"[\"'“‘][가-힣A-Za-z0-9\s]{1,30}[\"'”’]")
+ITALIC_RE = re.compile(r"(?<!\*)\*[^*\n]{1,80}\*(?!\*)|_[^_\n]{1,80}_")
+HUMAN_HONEST_RE = re.compile(r"(?i)\b(?:honestly|to be fair|frankly)\b|솔직히|솔직히\s+말하면|까놓고\s+말하면|인정하자면|사실은")
+HUMAN_SPECIFIC_RE = re.compile(r"(?i)\b(?:for example|for instance|e\.g\.)\b|예를\s+들어|예컨대|실제로|\d+(?:[.,]\d+)*(?:%|년|월|일|원|명|개|배|초|분|시간)?")
+HUMAN_PERSPECTIVE_RE = re.compile(r"(?i)\b(?:in my experience|my view|I think|I’ve found|I've found)\b|제\s+경험(?:으로는|상)|개인적으로|제가\s+보기(?:엔|에는)|나는|저는")
+HUMAN_FLOW_RE = re.compile(r"(?i)\b(?:but|so|still|anyway|that said)\b|그런데|그래도|다만|그래서|어쨌든|한편")
 
 
 @dataclass(frozen=True)
@@ -354,6 +377,10 @@ def _count_over_numbered_sequences(text: str, lines: Iterable[str]) -> int:
     count = 0
     if len(re.findall(r"(?i)\b(first|second|third|fourth|fifth|sixth|finally|lastly)\b", text)) >= 3:
         count += 1
+    if len(re.findall(r"(?:첫째|둘째|셋째|넷째|다섯째|마지막으로|우선|다음으로)", text)) >= 3:
+        count += 1
+    if re.search(r"(?:^|\s)(?:1\)|\(1\))[\s\S]{0,240}(?:2\)|\(2\))[\s\S]{0,240}(?:3\)|\(3\))", text):
+        count += 1
     run = 0
     for line in lines:
         if ORDERED_LINE_RE.search(line):
@@ -374,13 +401,15 @@ def _count_connector_monotony(text: str) -> int:
         if not tokens:
             continue
         opener = tokens[0]
+        if tokens[0] in KOREAN_CONNECTOR_OPENERS:
+            opener = tokens[0]
         for size in (3, 2):
             if len(tokens) >= size:
                 candidate = " ".join(tokens[:size])
                 if candidate in CONNECTOR_OPENERS:
                     opener = candidate
                     break
-        if opener in CONNECTOR_OPENERS:
+        if opener in CONNECTOR_OPENERS or opener in KOREAN_CONNECTOR_OPENERS:
             counts[opener] = counts.get(opener, 0) + 1
     return sum(1 for count in counts.values() if count >= 3)
 
@@ -470,6 +499,9 @@ def _repeated_opener_rate(sentences: Iterable[str]) -> float:
 
 
 def _sentence_ending_key(sentence: str) -> str:
+    korean = KOREAN_SENTENCE_ENDING_RE.search(sentence.strip())
+    if korean:
+        return korean.group(1)
     tokens = [token.lower() for token in word_tokens(sentence)]
     content = [token for token in tokens if token not in FUNCTION_WORDS]
     if len(content) >= 2:
@@ -494,6 +526,14 @@ def _repeated_ending_rate(sentences: Iterable[str]) -> float:
     return repeated / len(sentences)
 
 
+def _paragraph_length_cv(text: str) -> tuple[float, int]:
+    lengths = [len(word_tokens(paragraph)) for paragraph in re.split(r"\n\s*\n+", text) if paragraph.strip()]
+    if len(lengths) < 3:
+        return 1.0, len(lengths)
+    avg = mean(lengths)
+    return pstdev(lengths) / max(avg, 1.0), len(lengths)
+
+
 def _rhythm_monotony_subscore(doc: PreparedDocument) -> tuple[float, float, str, list[Finding]]:
     findings: list[Finding] = []
     if len(doc.sentences) < 5:
@@ -512,7 +552,9 @@ def _rhythm_monotony_subscore(doc: PreparedDocument) -> tuple[float, float, str,
     ending_rate = _repeated_ending_rate(doc.sentences)
     ending_penalty = clip01((ending_rate - 0.15) / 0.25)
     template_penalty = clip01((max_sentence_template_streak(doc.sentences) - 2) / 4)
-    rhy = (0.50 * cv_penalty) + (0.20 * opener_penalty) + (0.20 * ending_penalty) + (0.10 * template_penalty)
+    paragraph_cv, paragraph_count = _paragraph_length_cv(doc.clean_text)
+    paragraph_penalty = clip01((0.40 - paragraph_cv) / 0.30) if paragraph_count >= 3 else 0.0
+    rhy = (0.45 * cv_penalty) + (0.20 * opener_penalty) + (0.20 * ending_penalty) + (0.10 * template_penalty) + (0.05 * paragraph_penalty)
     if rhy >= 0.25:
         findings.append(Finding(None, None, "rhythm_issue", "medium", "sentence rhythm is unusually uniform", suggested_fix="Mix short, medium, and longer sentences."))
     return clip01(rhy), cv, "normal", findings
@@ -539,33 +581,53 @@ def _meta_commentary_subscore(doc: PreparedDocument) -> tuple[float, int, list[F
 
 
 def _markdown_overuse_subscore(doc: PreparedDocument) -> tuple[float, int, list[Finding]]:
-    hits = 0
+    bullet_lines = 0
+    heading_lines = 0
+    table_lines = 0
+    emphasis_spans = doc.inline_code_spans
+    other_hits = 0
     findings: list[Finding] = []
     for idx, line in enumerate(doc.prose_lines, start=1):
         line_hits = 0
         if HEADING_LINE_RE.search(line):
+            heading_lines += 1
             line_hits += 1
         if BULLET_LINE_RE.search(line):
+            bullet_lines += 1
             line_hits += 1
         if TABLE_LINE_RE.search(line):
+            table_lines += 1
             line_hits += 1
         if BLOCKQUOTE_RE.search(line):
+            other_hits += 1
             line_hits += 1
         if HORIZONTAL_RULE_RE.search(line):
+            other_hits += 1
             line_hits += 1
-        line_hits += len(BOLD_RE.findall(line))
+        emphasis_on_line = len(BOLD_RE.findall(line)) + len(ITALIC_RE.findall(line)) + len(QUOTE_EMPHASIS_RE.findall(line))
+        emphasis_spans += emphasis_on_line
+        line_hits += emphasis_on_line
         if line_hits:
-            hits += line_hits
             findings.append(Finding(idx, None, "markdown_overuse", "low", line.strip(), line.strip(), "Use formatting only when it helps the reader."))
     em_dash_hits = doc.clean_text.count("—")
-    hits += em_dash_hits
-    density = 1000.0 * hits / doc.word_count
-    return clip01(density / MARKDOWN_DENSITY_MAX), hits, findings
+    emphasis_spans += em_dash_hits + other_hits
+    line_count = max(len(doc.prose_lines), 1)
+    bullet_ratio = bullet_lines / line_count
+    heading_ratio = heading_lines / line_count
+    table_ratio = table_lines / line_count
+    emphasis_density = 1000.0 * emphasis_spans / doc.word_count
+    bullet_penalty = clip01((bullet_ratio - 0.12) / 0.28)
+    heading_penalty = clip01((heading_ratio - 0.08) / 0.17)
+    table_penalty = clip01(table_ratio / 0.20)
+    emphasis_penalty = clip01((emphasis_density - 3.0) / 17.0)
+    md = (0.40 * bullet_penalty) + (0.20 * heading_penalty) + (0.20 * table_penalty) + (0.20 * emphasis_penalty)
+    hits = bullet_lines + heading_lines + table_lines + emphasis_spans
+    return clip01(md), hits, findings
 
 
 def analyze_doc_patterns(text: str) -> dict:
     doc = prepare_document(text)
-    lengths = [len(sentence) for sentence in doc.sentences]
+    lengths = [len(word_tokens(sentence)) for sentence in doc.sentences]
     avg_len = mean(lengths) if lengths else 0.0
     stddev = pstdev(lengths) if len(lengths) > 1 else 0.0
     opener_counts: dict[str, int] = {}
@@ -581,13 +643,49 @@ def analyze_doc_patterns(text: str) -> dict:
     catalog = load_banned_catalog()
     lower_text = doc.clean_text.lower()
     banned_count = sum(len(_entry_regex(word).findall(lower_text)) for word in catalog.single_words)
+    paragraph_lengths = [len(word_tokens(paragraph)) for paragraph in re.split(r"\n\s*\n+", doc.clean_text) if paragraph.strip()]
+    paragraph_cv = (pstdev(paragraph_lengths) / max(mean(paragraph_lengths), 1.0)) if len(paragraph_lengths) > 1 else 0.0
+    sentence_cv = (stddev / max(avg_len, 1.0)) if lengths else 0.0
+    honest_hits = len(HUMAN_HONEST_RE.findall(doc.clean_text))
+    specific_hits = len(HUMAN_SPECIFIC_RE.findall(doc.clean_text))
+    perspective_hits = len(HUMAN_PERSPECTIVE_RE.findall(doc.clean_text))
+    flow_hits = len(HUMAN_FLOW_RE.findall(doc.clean_text))
     return {
         "avg_sentence_length": round(avg_len, 1),
         "sentence_length_std_dev": round(stddev, 1),
+        "sentence_length_cv": round(sentence_cv, 4),
+        "paragraph_length_cv": round(paragraph_cv, 4),
         "repeated_openers": repeated,
         "bullet_density": bullet_density,
         "heading_count": sum(1 for line in text.splitlines() if HEADING_LINE_RE.search(line)),
         "banned_word_count": banned_count,
+        "human_framework": {
+            "H_honest_human_flaws": {
+                "marker_count": honest_hits,
+                "examples": ["솔직히 말하면", "to be fair", "honestly"],
+                "covered_by": "doc_patterns positive-signal diagnostic; over-polish also affects RHY/SPV",
+            },
+            "U_unpredictable_structure": {
+                "sentence_length_cv": round(sentence_cv, 4),
+                "paragraph_length_cv": round(paragraph_cv, 4),
+                "covered_by": "RHY plus SPV/MD structural detectors",
+            },
+            "M_memorable_specifics": {
+                "specific_marker_count": specific_hits,
+                "examples": ["numbers/dates", "예를 들어", "for example"],
+                "covered_by": "doc_patterns positive-signal diagnostic",
+            },
+            "A_authentic_perspective": {
+                "marker_count": perspective_hits,
+                "examples": ["제 경험으로는", "개인적으로", "in my experience"],
+                "covered_by": "doc_patterns positive-signal diagnostic",
+            },
+            "N_natural_flow": {
+                "conversational_connector_count": flow_hits,
+                "robotic_repeated_openers": repeated,
+                "covered_by": "SPV connector monotony plus RHY opener repetition",
+            },
+        },
     }
 
 

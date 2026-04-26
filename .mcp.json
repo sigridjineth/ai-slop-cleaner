@@ -1,0 +1,1 @@
+{"mcpServers":{"ai-slop-cleaner":{"command":"go","args":["run","scripts/ai-slop-cleaner.go","serve"],"timeout":300}}}

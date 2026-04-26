@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "active": false,
+  "skill": "deep-interview",
+  "keyword": "ouroboros",
+  "phase": "closed_false_positive_keyword",
+  "activated_at": "2026-04-26T05:33:27.565Z",
+  "updated_at": "2026-04-26T05:33:51.930Z",
+  "source": "keyword-detector",
+  "session_id": "019dc847-3d68-70b0-baab-8a17f09b5a08",
+  "turn_id": "019dc847-3d80-7f90-ab25-517397b7f77a",
+  "input_lock": {
+    "active": true,
+    "scope": "deep-interview-auto-approval",
+    "acquired_at": "2026-04-26T05:33:27.565Z",
+    "blocked_inputs": [
+      "yes",
+      "y",
+      "proceed",
+      "continue",
+      "ok",
+      "sure",
+      "go ahead",
+      "next i should"
+    ],
+    "message": "Deep interview is active; auto-approval shortcuts are blocked until the interview finishes."
+  },
+  "initialized_mode": "deep-interview",
+  "initialized_state_path": ".omx/state/sessions/019dc847-3d68-70b0-baab-8a17f09b5a08/deep-interview-state.json",
+  "current_phase": "closed_false_positive_keyword",
+  "completed_at": "2026-04-26T05:34:00Z",
+  "reason": "User task is clear and actionable; continuing in solo execution."
+}

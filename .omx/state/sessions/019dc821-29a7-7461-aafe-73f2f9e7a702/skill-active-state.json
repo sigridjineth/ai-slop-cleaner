@@ -1,0 +1,27 @@
+{
+  "active": true,
+  "started_at": "2026-04-26T04:51:47.987Z",
+  "current_phase": "inspect",
+  "task_description": "Implement references/slop-score-spec.md exactly in scripts/ai-slop-cleaner.go -score mode while preserving report generation.",
+  "skill": "ai-slop-cleaner",
+  "scope": [
+    "scripts/ai-slop-cleaner.go",
+    "scripts/ai-slop-cleaner_test.go",
+    "references/slop-score-spec.md",
+    "references/banned-words.md",
+    "references/banned-patterns.md"
+  ],
+  "version": 1,
+  "keyword": "",
+  "phase": "",
+  "activated_at": "",
+  "updated_at": "",
+  "active_skills": [
+    {
+      "skill": "ai-slop-cleaner",
+      "active": true
+    }
+  ],
+  "iteration": 1,
+  "last_turn_at": "2026-04-26T04:52:39.100Z"
+}

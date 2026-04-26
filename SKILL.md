@@ -41,8 +41,14 @@ A pre-built aarch64 Linux binary lives in `releases/`.
 
 The binary loads two markdown tables at runtime:
 
-- `rules/banned-patterns.md` — 70 structural regex patterns (Korean + English). Regex cells are backtick-wrapped so `|` inside alternation groups parses correctly.
+- `rules/banned-patterns.md` — 70 structural regex patterns with `Lang Scope` column (`universal`, `english`, `korean`). Universal patterns (bold, em dash, bullet block, emoji, colon heading, buzzwords) apply to all languages. Regex cells are backtick-wrapped so `|` inside alternation groups parses correctly.
 - `rules/banned-words.md` — 93 banned words/phrases with suggested replacements.
+
+Language filtering via `--lang auto|en|ko|all`:
+- `auto`: detects language from Hangul ratio (≥5% = Korean)
+- `en`: applies `english` + `universal` patterns, skips `korean`
+- `ko`: applies `korean` + `universal` patterns, skips `english`
+- `all`: applies all patterns
 
 Output: a 0–100 score (sum of weighted matches, capped). Formats: `text`, `json`, `markdown`.
 

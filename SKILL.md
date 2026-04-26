@@ -1,7 +1,7 @@
 ---
 name: ai-slop-cleaner
 category: writing
-version: 2.1.0
+version: 2.2.0
 description: >
   Detect AI-slop signals in prose with an agent-driven Python/FastMCP server.
   Use it to score generated text, identify suspicious spans, and guide surgical
@@ -32,6 +32,8 @@ src/ai_slop_cleaner/
     ├── detector.py                # claude --print -> codex exec -> fallback
     ├── scorer.py                  # 5-component weighted score formula
     ├── fallback.py                # regex fallback
+    ├── code_smells.py            # Python/JS/Rust code smell detector
+    ├── ralph.py                  # iterative cleanup loop
     ├── banned_words.py            # references/banned-words.md loader
     └── banned_patterns.py         # references/banned-patterns.md loader
 ```
@@ -63,6 +65,8 @@ pip install -e '.[dev]'
 ai-slop-cleaner mcp serve
 ai-slop-cleaner score draft.md
 ai-slop-cleaner analyze draft.md
+ai-slop-cleaner code-smells src tests --tests tests
+ai-slop-cleaner ralph draft.md --threshold 25 --max-iterations 5 --output clean.md
 ```
 
 For local tests or deterministic runs:
@@ -148,6 +152,8 @@ If using findings to rewrite text:
 - `src/ai_slop_cleaner/mcp/tools.py` — MCP tool functions.
 - `src/ai_slop_cleaner/core/detector.py` — agent delegation.
 - `src/ai_slop_cleaner/core/fallback.py` — deterministic fallback.
+- `src/ai_slop_cleaner/core/code_smells.py` — code cleanup smell detector.
+- `src/ai_slop_cleaner/core/ralph.py` — iterative Ralph cleanup loop.
 - `src/ai_slop_cleaner/core/banned_patterns.py` — regex patterns (English + Korean).
 - `src/ai_slop_cleaner/core/banned_words.py` — banned word taxonomy loader.
 - `src/ai_slop_cleaner/core/scorer.py` — 5-component weighted score formula.
@@ -163,3 +169,5 @@ If using findings to rewrite text:
 - `references/im-not-ai-audit.md` — external rule coverage audit report.
 - `references/human-checklist.md` — H.U.M.A.N. Framework 20-point checklist.
 - `tests/test_im_not_ai_coverage.py` — Korean pattern regression tests.
+- `tests/test_code_smells.py` — code-smell detector regression tests.
+- `tests/test_ralph.py` — Ralph mode regression tests.

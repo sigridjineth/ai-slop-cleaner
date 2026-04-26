@@ -8,7 +8,9 @@ from pathlib import Path
 import sys
 
 from ai_slop_cleaner import __version__
+from ai_slop_cleaner.core.code_smells import analyze_paths
 from ai_slop_cleaner.core.detector import analyze_text
+from ai_slop_cleaner.core.ralph import run_ralph
 from ai_slop_cleaner.mcp.server import serve
 
 
@@ -43,6 +45,19 @@ def build_parser() -> argparse.ArgumentParser:
     _add_input_arg(analyze_parser)
     analyze_parser.add_argument("--pretty", action="store_true", default=True, help="Pretty-print JSON (default).")
     analyze_parser.add_argument("--compact", action="store_true", help="Print compact JSON.")
+
+    code_parser = sub.add_parser("code-smells", help="Analyze Python/JS/Rust files for code cleanup smells.")
+    code_parser.add_argument("paths", nargs="+", help="Code files or directories to scan.")
+    code_parser.add_argument("--tests", help="Test file or directory used for missing-test heuristics.")
+    code_parser.add_argument("--compact", action="store_true", help="Print compact JSON.")
+
+    ralph_parser = sub.add_parser("ralph", help="Iteratively clean prose until the AI Slop Score reaches a threshold.")
+    ralph_parser.add_argument("file", help="UTF-8 text/markdown file to clean.")
+    ralph_parser.add_argument("--threshold", type=int, default=25, help="Stop once score is <= threshold (default: 25).")
+    ralph_parser.add_argument("--max-iterations", type=int, default=10, help="Maximum cleanup iterations (default: 10).")
+    ralph_parser.add_argument("--output", help="Write cleaned text to this file instead of overwriting input.")
+    ralph_parser.add_argument("--overwrite", action="store_true", help="Overwrite the input file. Default when --output is omitted.")
+    ralph_parser.add_argument("--json", action="store_true", help="Print the full Ralph result as JSON.")
     return parser
 
 
@@ -69,6 +84,34 @@ def main(argv: list[str] | None = None) -> int:
         indent = None if args.compact else 2
         print(json.dumps(result, indent=indent, ensure_ascii=False))
         return 0
+
+    if args.command == "code-smells":
+        result = analyze_paths(args.paths, tests_path=args.tests)
+        indent = None if args.compact else 2
+        print(json.dumps(result, indent=indent, ensure_ascii=False))
+        return 0
+
+    if args.command == "ralph":
+        result = run_ralph(
+            args.file,
+            threshold=args.threshold,
+            max_iterations=args.max_iterations,
+            output=args.output,
+            overwrite=args.overwrite or not args.output,
+        )
+        if args.json:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+
+        for iteration in result["iterations"]:
+            print(f"iteration {iteration['iteration']}: score={iteration['score']} changed={iteration['changed']}")
+            for finding in iteration["top_findings"][:3]:
+                line = f":{finding['line']}" if finding.get("line") else ""
+                print(f"  - {finding.get('category', 'unknown')}{line}: {finding.get('text', '')}")
+        status = result["status"].upper()
+        output = f" output={result['output']}" if result.get("output") else ""
+        print(f"{status}: final_score={result['final_score']} threshold={result['threshold']}{output}")
+        return 0 if result["status"] == "success" else 1
 
     parser.error("unknown command")
     return 2

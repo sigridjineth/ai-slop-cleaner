@@ -12,6 +12,10 @@ entry point.
 - **Agent-driven detector:** tries `claude --print`, then `codex exec`
 - **Regex fallback:** deterministic detection when no AI agent is available
 - **Score aggregation:** five weighted components on a 0-100 scale
+- **Code-smell detector:** Python/JS/Rust triage for duplicate functions, dead
+  code, needless abstraction, boundary violations, and missing tests
+- **Ralph mode:** iterative rule-based cleanup that rewrites a file until it
+  reaches a target score or exhausts a bounded iteration budget
 
 ## Install for development
 
@@ -32,6 +36,12 @@ ai-slop-cleaner score draft.md
 
 # Full JSON analysis
 ai-slop-cleaner analyze draft.md
+
+# Code cleanup triage for Python/JS/Rust
+ai-slop-cleaner code-smells src tests --tests tests
+
+# Iteratively clean prose; overwrites input unless --output is supplied
+ai-slop-cleaner ralph draft.md --threshold 25 --max-iterations 5 --output clean.md
 
 # Force deterministic fallback instead of spawning agents
 AI_SLOP_CLEANER_DISABLE_AGENTS=1 ai-slop-cleaner analyze draft.md
@@ -67,6 +77,8 @@ src/ai_slop_cleaner/
     ├── detector.py
     ├── scorer.py
     ├── fallback.py
+    ├── code_smells.py
+    ├── ralph.py
     ├── banned_words.py
     └── banned_patterns.py
 ```
@@ -81,6 +93,17 @@ in this order:
 The fallback ports the essential behavior from the old Go CLI: it skips fenced
 code blocks, strips inline code, honors `.slopignore`, loads the banned-word and
 banned-pattern references, and computes the same five component keys.
+
+`core/code_smells.py` embeds the oh-my-codex code cleanup discipline: lock
+behavior with regression tests first, create a cleanup plan before code,
+categorize findings, run one smell pass at a time, and finish with evidence.
+The detector reports Duplication, Dead code, Needless abstraction, Boundary
+violations, and Missing tests for Python, JavaScript/TypeScript, and Rust.
+
+`core/ralph.py` runs the iterative cleanup loop. Each iteration analyzes the
+text, prints the score and top findings, then applies safe rule-based fixes:
+banned-word replacement, sentence-structure variation, markdown decoration
+reduction, and translationese simplification.
 
 ## AI Slop Score
 

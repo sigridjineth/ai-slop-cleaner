@@ -1,116 +1,91 @@
 ---
 title: AI Slop Cleaner
-description: Detect and score AI-generated slop patterns in text documents using a Rust CLI tool with dynamically loaded rules.
+description: Score prose for AI-slop signals using a Rust CLI (regex fast-path) plus agent-readable pattern definitions for multilingual LLM judgment.
 category: writing
-tags: [ai, writing, rust, cli, quality]
+tags: [ai, writing, rust, cli, quality, multilingual]
 ---
 
 # AI Slop Cleaner
 
-A Rust-based CLI tool that detects and scores AI-generated "slop" patterns in text documents. It uses dynamically loaded rules from markdown tables, allowing the agent to judge patterns without hardcoding them into the binary.
+Two detection modes work together: a compiled Rust binary gives fast regex-based scoring, while a plain-markdown pattern catalog lets any LLM agent judge slop across languages without touching regex.
+
+Repo: `~/.hermes/skills/ai-slop-cleaner` (also at `sigridjineth/ai-slop-cleaner` on GitHub).
+
+## When to Use
+
+- Scoring a draft before publishing (CLI or CI).
+- Feeding analysis results into an agent rewrite loop (OMX, Claude, Codex).
+- Adding slop detection to any LLM pipeline that reads markdown.
 
 ## Quick Start
 
 ```bash
-# Build the Rust binary
-cd rust && cargo build --release
+cd ~/.hermes/skills/ai-slop-cleaner/rust
+cargo build --release
 
-# Score a file
-./target/release/ai-slop-cleaner score my-article.md --rules-dir rules/
+# score a file
+./target/release/ai-slop-cleaner score draft.md --rules-dir rules/
 
-# Score from stdin
-cat my-article.md | ./target/release/ai-slop-cleaner stdin --rules-dir rules/
+# pipe from stdin
+cat draft.md | ./target/release/ai-slop-cleaner stdin --rules-dir rules/
 
-# List loaded rules
+# list loaded rules
 ./target/release/ai-slop-cleaner rules --rules-dir rules/
 ```
 
+A pre-built aarch64 Linux binary lives in `releases/`.
+
+## Two Detection Modes
+
+### Mode 1 — Regex (Rust binary)
+
+The binary loads two markdown tables at runtime:
+
+- `rules/banned-patterns.md` — 70 structural regex patterns (Korean + English). Regex cells are backtick-wrapped so `|` inside alternation groups parses correctly.
+- `rules/banned-words.md` — 93 banned words/phrases with suggested replacements.
+
+Output: a 0–100 score (sum of weighted matches, capped). Formats: `text`, `json`, `markdown`.
+
+### Mode 2 — Agent-Readable Patterns (multilingual)
+
+`rules/patterns-agent.md` (649 lines) describes every pattern in plain prose with severity, weight, examples, and multilingual notes. No regex knowledge needed.
+
+An LLM agent reads this file, then judges whether a given text matches each pattern by intent — not by string match. This covers languages and nuances that regex cannot reach (Japanese, Chinese, mixed-code prose, cultural idioms).
+
+The agent prompt template lives in `references/agent-prompt-template.md`. It embeds the banned-words list, the pattern catalog, and a JSON response schema with five scoring components:
+
+```
+Score = round(100 * (0.25*BWD + 0.25*SPV + 0.20*RHY + 0.15*META + 0.15*MD))
+```
+
+BWD = banned word density, SPV = structural pattern violations, RHY = rhythm monotony, META = meta commentary, MD = markdown overuse.
+
 ## Architecture
 
-The tool consists of three main components:
+Rust source is in `rust/src/`:
 
-1. **Pattern Loader** (`src/pattern_loader.rs`): Loads banned patterns and words from markdown tables at runtime. Uses backtick-aware parsing so `|` inside regex alternation is not treated as a column delimiter.
-2. **Scorer** (`src/scorer.rs`): Matches text against loaded rules and calculates an overall slop score. Skips malformed rules with a warning instead of crashing.
-3. **CLI** (`src/main.rs`): Provides commands for scoring files, stdin, and listing rules.
+- `pattern_loader.rs` — parses markdown tables with backtick-aware column splitting.
+- `scorer.rs` — matches text line-by-line against loaded rules, accumulates weighted score.
+- `main.rs` — CLI with `score`, `stdin`, `rules` subcommands.
 
-## Rule Files
+## Adding or Editing Rules
 
-Rules are defined in two markdown files:
+Edit the markdown files in `rules/`. The binary reloads them on every run. For agent-mode patterns, add a new `###` section to `patterns-agent.md` with severity, weight, description, examples, and a multilingual note.
 
-### `rules/banned-patterns.md`
+No recompilation needed for rule changes.
 
-Contains structural patterns (regex) that indicate AI slop:
+## OMX Delegation
 
-| Name | Severity | Weight | Regex | Description |
-|------|----------|--------|-------|-------------|
-| redefinition | medium | 2.0 | `(?i)(?:\bnot\s+\w+(?:\s+\w+){0,2}\b\|...` | A is not X, it is Y |
-| closing_summary | low | 1.0 | `(?i)\b(to summarize\|in summary\|...)\b` | Closing-summary repetition |
-
-**Important:** Regex cells are wrapped in backticks (`` `...` ``). The parser is **backtick-aware** — it ignores `|` characters inside backticks, so regex alternation like `delve\|elucidate\|underscore` works correctly. Do not remove the backtick wrappers.
-
-### `rules/banned-words.md`
-
-Contains individual words and phrases to flag:
-
-| Word | Replacement | Weight |
-|------|-------------|--------|
-| delve into | explore | 1.0 |
-| furthermore | | 2.0 |
-
-## Adding New Rules
-
-To add a new pattern or word, simply edit the corresponding markdown file. The binary will load it dynamically on the next run — no recompilation needed.
-
-## Scoring
-
-The overall score is a sum of weights from all matched patterns and words, capped at 100. Severity levels (high/medium/low) help prioritize which issues to fix first.
-
-## Output Formats
-
-- `text` (default): Human-readable summary
-- `json`: Machine-parseable output
-- `markdown`: Report suitable for pasting into issues/PRs
-
-## Key Patterns Detected
-
-- **Redefinition**: "A is not X, it is Y" / "A가 아니라 B다"
-- **Closing summaries**: "In conclusion", "To summarize"
-- **Progress announcements**: "Let's dive in", "Let's explore"
-- **Pre-classification**: "There are three types..."
-- **Mechanical enumeration**: "First... Second... Third..."
-- **Bullet block abuse**: Excessive bullet lists
-- **Generic headings**: "Introduction", "Conclusion"
-- **Topic sentence formulas**: "The important thing is..."
-- **Emoji decoration**: 🚀, 💡, ✅ in prose
-- **Korean translationese**: ~에 대해, ~을 통해, ~에 있어서
-- **Hedging**: "It seems that...", "One could argue..."
-- **Buzzwords**: leverage, harness, delve, pivotal, etc.
-
-## Oh-My-Codex (OMX) Delegation
-
-For automated cleanup, use `scripts/omx-delegate.sh`:
+`scripts/omx-delegate.sh` orchestrates iterative cleanup:
 
 ```bash
 ./scripts/omx-delegate.sh <input-file> [output-dir]
 ```
 
-This script:
-1. Runs the Rust binary to analyze the text
-2. Generates an `omx-context.md` for Codex
-3. Delegates to oh-my-codex with three roles (`$team`, `$ralph`, `$ultrawork`)
-4. Iteratively cleans the text until the score drops below 15.0 (max 3 rounds)
+It runs the Rust binary, generates context for Codex, and delegates to `$team` / `$ralph` / `$ultrawork` roles in a single `omx exec` call. The loop stops when the score drops below 15 or after 3 rounds.
 
-**Note:** If the global `codex` CLI is outdated and can't use newer models like `gpt-5.5`, the script falls back to `npx @openai/codex@latest exec` which always pulls the latest version.
+## Pitfalls
 
-## Troubleshooting
-
-### Regex compilation errors
-If you see `RegexError` warnings, check that:
-- Regex cells in `banned-patterns.md` are wrapped in backticks
-- `\|` is used for alternation (not bare `|` which would break the markdown table)
-- Unicode ranges like `\uac00-\ud7a3` are properly escaped
-
-### OMX delegation fails
-If `codex exec` fails with "model requires a newer version":
-- The script auto-detects this and uses `npx @openai/codex@latest` instead
-- Alternatively, update the global package: `npm install -g @openai/codex@latest`
+- The prompt document itself scores 100/100 because it lists banned words as examples. Self-referential documents are expected to score high.
+- Regex cells in `banned-patterns.md` must stay inside backticks. Removing backticks breaks alternation parsing.
+- `banned_words.json` is a legacy artifact from the Go/Python era; the Rust binary reads `banned-words.md` instead.

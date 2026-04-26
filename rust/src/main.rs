@@ -19,6 +19,12 @@ struct Cli {
     /// Path to the rules directory (contains banned-patterns.md and banned-words.md)
     #[arg(short, long, default_value = "rules")]
     rules_dir: PathBuf,
+
+    /// Language filter: en, ko, auto, or all (default: auto).
+    /// 'auto' detects based on text content. 'en' skips ko_* patterns.
+    /// 'ko' skips English-only patterns. 'all' applies everything.
+    #[arg(short, long, default_value = "auto")]
+    lang: String,
 }
 
 #[derive(Subcommand, Debug)]
@@ -51,13 +57,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::Score { file, format } => {
             let content = fs::read_to_string(&file)?;
-            let result = scorer.score(&content);
+            let result = scorer.score(&content, &cli.lang);
             print_result(&result, &format)?;
         }
         Commands::Stdin { format } => {
             let mut content = String::new();
             std::io::stdin().read_to_string(&mut content)?;
-            let result = scorer.score(&content);
+            let result = scorer.score(&content, &cli.lang);
             print_result(&result, &format)?;
         }
         Commands::Rules => {

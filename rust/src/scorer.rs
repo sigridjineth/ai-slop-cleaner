@@ -22,6 +22,7 @@ pub struct ScoreResult {
     pub matches: Vec<MatchResult>,
     pub word_matches: Vec<WordMatchResult>,
     pub summary: ScoreSummary,
+    pub detected_lang: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -46,6 +47,61 @@ pub struct Scorer {
     ruleset: Ruleset,
 }
 
+/// Detect language from text content.
+/// Returns "ko" if >= 5% of characters are Korean (Hangul),
+/// "en" otherwise.
+fn detect_language(text: &str) -> &'static str {
+    let total_chars = text.chars().filter(|c| !c.is_whitespace()).count();
+    if total_chars == 0 {
+        return "en";
+    }
+    let korean_chars = text
+        .chars()
+        .filter(|c| {
+            let cp = *c as u32;
+            // Hangul Syllables (AC00-D7A3) + Jamo (1100-11FF, 3130-318F)
+            (0xAC00..=0xD7A3).contains(&cp)
+                || (0x1100..=0x11FF).contains(&cp)
+                || (0x3130..=0x318F).contains(&cp)
+        })
+        .count();
+    let ratio = korean_chars as f64 / total_chars as f64;
+    if ratio >= 0.05 {
+        "ko"
+    } else {
+        "en"
+    }
+}
+
+/// Check if a pattern should be included given the resolved language.
+fn should_include_pattern(pattern_name: &str, lang: &str) -> bool {
+    match lang {
+        "en" => !pattern_name.starts_with("ko_"),
+        "ko" => {
+            // For Korean text, include ko_* patterns + language-neutral patterns
+            // Skip purely English structural patterns that don't start with ko_
+            // but keep a_not_b variants and word-level patterns
+            true
+        }
+        _ => true, // "all" or anything else
+    }
+}
+
+/// Check if a banned word should be included given the resolved language.
+fn should_include_word(word: &str, lang: &str) -> bool {
+    match lang {
+        "en" => {
+            // Skip Korean banned words (contain Hangul)
+            !word.chars().any(|c| {
+                let cp = c as u32;
+                (0xAC00..=0xD7A3).contains(&cp)
+            })
+        }
+        "ko" => true, // Korean text gets all word checks
+        _ => true,
+    }
+}
+
 impl Scorer {
     pub fn new(ruleset: Ruleset) -> Self {
         Scorer { ruleset }
@@ -55,13 +111,23 @@ impl Scorer {
         &self.ruleset
     }
 
-    pub fn score(&self, text: &str) -> ScoreResult {
+    pub fn score(&self, text: &str, lang: &str) -> ScoreResult {
+        let resolved_lang = match lang {
+            "auto" => detect_language(text),
+            "en" => "en",
+            "ko" => "ko",
+            _ => "all",
+        };
+
         let mut matches = Vec::new();
         let mut word_matches = Vec::new();
         let lines: Vec<&str> = text.lines().collect();
 
-        // Score structural patterns
+        // Score structural patterns (filtered by language)
         for pattern in &self.ruleset.patterns {
+            if !should_include_pattern(&pattern.name, resolved_lang) {
+                continue;
+            }
             for (line_idx, line) in lines.iter().enumerate() {
                 for mat in pattern.regex.find_iter(line) {
                     matches.push(MatchResult {
@@ -78,8 +144,11 @@ impl Scorer {
             }
         }
 
-        // Score banned words
+        // Score banned words (filtered by language)
         for word_entry in &self.ruleset.words {
+            if !should_include_word(&word_entry.word, resolved_lang) {
+                continue;
+            }
             let word_regex = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(&word_entry.word)))
                 .unwrap_or_else(|_| Regex::new(&regex::escape(&word_entry.word)).unwrap());
 
@@ -116,6 +185,7 @@ impl Scorer {
                 medium_severity_count: medium_count,
                 low_severity_count: low_count,
             },
+            detected_lang: resolved_lang.to_string(),
         }
     }
 }
@@ -127,29 +197,25 @@ mod tests {
 
     fn test_ruleset() -> Ruleset {
         Ruleset {
-            patterns: vec![
-                crate::pattern_loader::BannedPattern {
-                    name: "test_pattern".to_string(),
-                    severity: "high".to_string(),
-                    weight: 2.0,
-                    regex: Regex::new(r"(?i)\btest\b").unwrap(),
-                    description: "Test pattern".to_string(),
-                },
-            ],
-            words: vec![
-                crate::pattern_loader::BannedWord {
-                    word: "badword".to_string(),
-                    replacement: Some("goodword".to_string()),
-                    weight: 1.5,
-                },
-            ],
+            patterns: vec![crate::pattern_loader::BannedPattern {
+                name: "test_pattern".to_string(),
+                severity: "high".to_string(),
+                weight: 2.0,
+                regex: Regex::new(r"(?i)\btest\b").unwrap(),
+                description: "Test pattern".to_string(),
+            }],
+            words: vec![crate::pattern_loader::BannedWord {
+                word: "badword".to_string(),
+                replacement: Some("goodword".to_string()),
+                weight: 1.5,
+            }],
         }
     }
 
     #[test]
     fn test_basic_scoring() {
         let scorer = Scorer::new(test_ruleset());
-        let result = scorer.score("This is a test with badword.");
+        let result = scorer.score("This is a test with badword.", "all");
         assert!(result.overall_score > 0.0);
         assert_eq!(result.matches.len(), 1);
         assert_eq!(result.word_matches.len(), 1);
@@ -158,7 +224,7 @@ mod tests {
     #[test]
     fn test_no_matches() {
         let scorer = Scorer::new(test_ruleset());
-        let result = scorer.score("This is clean text.");
+        let result = scorer.score("This is clean text.", "all");
         assert_eq!(result.overall_score, 0.0);
         assert_eq!(result.matches.len(), 0);
         assert_eq!(result.word_matches.len(), 0);
@@ -168,29 +234,39 @@ mod tests {
     fn test_korean_patterns() {
         let ruleset = Ruleset::load_from_dir("rules").unwrap_or_else(|_| test_ruleset());
         let scorer = Scorer::new(ruleset);
-        
-        // Test Korean "A가 아니라 B" pattern
-        let result = scorer.score("이것은 테스트가 아니라 예시입니다.");
-        let has_korean_redefinition = result.matches.iter().any(|m| m.pattern_name.contains("a_not_b_korean"));
-        assert!(has_korean_redefinition, "Should detect Korean redefinition pattern");
+
+        let result = scorer.score("ì´ê²ì íì¤í¸ê° ìëë¼ ìììëë¤.", "all");
+        let has_korean_redefinition = result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name.contains("a_not_b_korean"));
+        assert!(
+            has_korean_redefinition,
+            "Should detect Korean redefinition pattern"
+        );
     }
 
     #[test]
     fn test_english_redefinition() {
         let ruleset = Ruleset::load_from_dir("rules").unwrap_or_else(|_| test_ruleset());
         let scorer = Scorer::new(ruleset);
-        
-        let result = scorer.score("This is not just a test, it is a revolution.");
-        let has_redefinition = result.matches.iter().any(|m| m.pattern_name.contains("redefinition") || m.pattern_name.contains("a_not_b"));
-        assert!(has_redefinition, "Should detect English redefinition pattern");
+
+        let result = scorer.score("This is not just a test, it is a revolution.", "all");
+        let has_redefinition = result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name.contains("redefinition") || m.pattern_name.contains("a_not_b"));
+        assert!(
+            has_redefinition,
+            "Should detect English redefinition pattern"
+        );
     }
 
     #[test]
     fn test_regex_compilation_all_patterns() {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         assert!(!ruleset.patterns.is_empty(), "Should load patterns");
-        
-        // Verify all patterns compiled successfully
+
         for pattern in &ruleset.patterns {
             assert!(
                 pattern.regex.as_str().len() > 0,
@@ -204,13 +280,36 @@ mod tests {
     fn test_unicode_korean_ranges() {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
-        
-        // Test various Korean AI slop patterns
-        let korean_text = "이 문제에 있어서 해결책을 찾아야 합니다. 이것을 통해 알 수 있습니다.";
-        let result = scorer.score(korean_text);
-        
-        // Should detect at least one Korean pattern
-        let has_korean_match = result.matches.iter().any(|m| m.pattern_name.starts_with("ko_"));
+
+        let korean_text = "ì´ ë¬¸ì ì ìì´ì í´ê²°ì±ì ì°¾ìì¼ í©ëë¤. ì´ê²ì íµí´ ì ì ììµëë¤.";
+        let result = scorer.score(korean_text, "all");
+
+        let has_korean_match = result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name.starts_with("ko_"));
         assert!(has_korean_match, "Should detect Korean AI slop patterns");
+    }
+
+    #[test]
+    fn test_lang_filter_en_skips_korean() {
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
+        let scorer = Scorer::new(ruleset);
+
+        let result = scorer.score("This is a normal English README file.", "en");
+        let has_ko = result.matches.iter().any(|m| m.pattern_name.starts_with("ko_"));
+        assert!(!has_ko, "lang=en should not produce ko_* matches");
+    }
+
+    #[test]
+    fn test_lang_auto_english() {
+        let result_lang = super::detect_language("This is a purely English document with no Korean.");
+        assert_eq!(result_lang, "en");
+    }
+
+    #[test]
+    fn test_lang_auto_korean() {
+        let result_lang = super::detect_language("ì´ê²ì íêµ­ì´ ë¬¸ììëë¤.");
+        assert_eq!(result_lang, "ko");
     }
 }

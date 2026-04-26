@@ -1,7 +1,7 @@
 ---
 name: ai-slop-cleaner
 category: writing
-version: 2.0.0
+version: 2.1.0
 description: >
   Detect AI-slop signals in prose with an agent-driven Python/FastMCP server.
   Use it to score generated text, identify suspicious spans, and guide surgical
@@ -83,6 +83,53 @@ The prompt sent to agents includes the banned-word list, structural-pattern list
 and `references/agent-response-schema.json`. Agents return component values in
 `0.0..1.0`; the package computes the final score.
 
+## Korean AI slop detection
+
+The package includes extensive Korean-language pattern coverage derived from
+external sources (e.g. `epoko77-ai/im-not-ai`). Categories include:
+
+| Category | Count | Examples |
+|---|---|---|
+| A — Translationese | 15 | `~에 대해(서)`, `~를 통해`, `~에 있어(서)`, `~할 수 있다` |
+| B — English term/quote overuse | 4 | Parenthesized English, raw buzzwords, long quotes |
+| C — Structural AI patterns | 10 | `첫째/둘째/셋째`, bullet blocks, generic headings, binary parallelism |
+| D — Signature Korean AI phrases | 7 | Conclusion formulas, hype words, personified abstract subjects |
+| E — Rhythm uniformity | 3 | Low sentence-length variation, repeated endings, uniform paragraphs |
+| F — Modifier/abstraction overload | 5 | Degree adverbs, double modifiers, `~적 N` chains |
+| G — Hedging | 2 | Hedge endings, double/triple hedges |
+| H — Connector overload | 4 | Sentence-initial connectors, `하지만/그러나`, `즉` |
+| I — Formal/dependent noun overload | 6 | `~것이다`, dependent nouns, `~할 필요가 있다` |
+| J — Visual decoration overload | 4 | Bold emphasis, quote emphasis, em dash, parenthetical asides |
+
+All 60 rules are implemented as `ko_*` regex patterns in `banned_patterns.py`
+and validated by `tests/test_im_not_ai_coverage.py`.
+
+## H.U.M.A.N. Framework diagnostics
+
+Positive human-quality signals are reported in `doc_patterns.human_framework`
+instead of adding a sixth score component:
+
+| Element | Markers | Coverage |
+|---|---|---|
+| H — Honest human flaws | `솔직히 말하면`, `to be fair`, `honestly` | RHY/SPV absence |
+| U — Unpredictable structure | Varying paragraph/sentence lengths | RHY + SPV |
+| M — Memorable specifics | Numbers, dates, `예를 들어` | doc_patterns diagnostic |
+| A — Authentic perspective | `제 경험으로는`, `개인적으로` | doc_patterns diagnostic |
+| N — Natural flow | Conversational connectors | SPV + RHY opener repetition |
+
+## Bulk external-rule audit with omx
+
+To audit coverage against an external rule repository (e.g. `im-not-ai`):
+
+1. Clone the external repo and extract all detection rules.
+2. Map each rule to existing `banned_patterns.py` patterns.
+3. Implement missing rules as `ko_*` regexes with test cases.
+4. Run `uv run pytest tests/ -v` to verify.
+5. Commit as `audit: cover all <source> + HUMAN framework rules`.
+
+Use a **single omx exec** with `$team` (inventory), `$ralph` (gap analysis),
+and `$ultrawork` (implementation) roles in one prompt for efficiency.
+
 ## Editing discipline
 
 If using findings to rewrite text:
@@ -101,6 +148,9 @@ If using findings to rewrite text:
 - `src/ai_slop_cleaner/mcp/tools.py` — MCP tool functions.
 - `src/ai_slop_cleaner/core/detector.py` — agent delegation.
 - `src/ai_slop_cleaner/core/fallback.py` — deterministic fallback.
+- `src/ai_slop_cleaner/core/banned_patterns.py` — regex patterns (English + Korean).
+- `src/ai_slop_cleaner/core/banned_words.py` — banned word taxonomy loader.
+- `src/ai_slop_cleaner/core/scorer.py` — 5-component weighted score formula.
 - `.claude-plugin/.mcp.json` — Claude plugin MCP config.
 - `.mcp.json` — project-level MCP config.
 - `.claude/CLAUDE.md` — Claude detection-subagent instructions.
@@ -110,3 +160,6 @@ If using findings to rewrite text:
 - `references/agent-response-schema.json` — expected subagent JSON schema.
 - `references/banned-words.md` — canonical banned-word taxonomy.
 - `references/banned-patterns.md` — canonical structural-pattern taxonomy.
+- `references/im-not-ai-audit.md` — external rule coverage audit report.
+- `references/human-checklist.md` — H.U.M.A.N. Framework 20-point checklist.
+- `tests/test_im_not_ai_coverage.py` — Korean pattern regression tests.

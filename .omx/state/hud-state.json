@@ -1,6 +1,0 @@
-{
-  "last_turn_at": "2026-04-26T05:46:53.035Z",
-  "last_progress_at": "2026-04-26T05:46:53.035Z",
-  "turn_count": 1,
-  "last_agent_output": "Done.\n\nChanged files:\n- `.mcp.json`\n- `.claude-plugin/.mcp.json`\n- `scripts/ai-slop-cleaner_test.go`"
-}

@@ -1,157 +1,117 @@
+use std::io::Read;
+use clap::{Parser, Subcommand};
+use std::fs;
 use std::path::PathBuf;
 
-use ai_slop_cleaner_rs::{
-    analyze_code_paths, analyze_text, run_mcp_stdio, run_ralph, score_from_components,
-};
-use clap::{Parser, Subcommand};
+mod pattern_loader;
+mod scorer;
 
-#[derive(Parser)]
-#[command(
-    name = "ai-slop-cleaner-rs",
-    version,
-    about = "Single-binary AI slop scorer, code-smell detector, Ralph cleaner, and MCP server"
-)]
+use pattern_loader::Ruleset;
+use scorer::Scorer;
+
+#[derive(Parser, Debug)]
+#[command(name = "ai-slop-cleaner")]
+#[command(about = "Detect and score AI slop in text documents")]
 struct Cli {
     #[command(subcommand)]
-    command: Command,
+    command: Commands,
+
+    /// Path to the rules directory (contains banned-patterns.md and banned-words.md)
+    #[arg(short, long, default_value = "rules")]
+    rules_dir: PathBuf,
 }
 
-#[derive(Subcommand)]
-enum Command {
-    /// Print the integer AI Slop Score for a file.
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Score a single file for AI slop
     Score {
+        /// Path to the text file to analyze
         file: PathBuf,
-        #[arg(long)]
-        json: bool,
+
+        /// Output format: text, json, or markdown
+        #[arg(short, long, default_value = "text")]
+        format: String,
     },
-    /// Print full AI-slop analysis JSON for a file.
-    Analyze {
-        file: PathBuf,
-        #[arg(long)]
-        compact: bool,
+    /// Score text from stdin
+    Stdin {
+        /// Output format: text, json, or markdown
+        #[arg(short, long, default_value = "text")]
+        format: String,
     },
-    /// Iteratively clean prose until the score reaches a threshold.
-    Ralph {
-        file: PathBuf,
-        #[arg(long, default_value_t = 25)]
-        threshold: u32,
-        #[arg(long, default_value_t = 10)]
-        max_iterations: usize,
-        #[arg(long)]
-        output: Option<PathBuf>,
-        #[arg(long)]
-        overwrite: bool,
-        #[arg(long)]
-        json: bool,
-    },
-    /// Analyze Python/JS/Rust files for code cleanup smells.
-    CodeSmells {
-        paths: Vec<PathBuf>,
-        #[arg(long)]
-        tests: Option<PathBuf>,
-        #[arg(long)]
-        compact: bool,
-    },
-    /// MCP server commands.
-    Mcp {
-        #[command(subcommand)]
-        command: McpCommand,
-    },
+    /// List all loaded rules
+    Rules,
 }
 
-#[derive(Subcommand)]
-enum McpCommand {
-    /// Serve MCP JSON-RPC over stdio.
-    Serve,
-}
-
-#[tokio::main]
-async fn main() -> anyhow_free::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    let ruleset = Ruleset::load_from_dir(&cli.rules_dir)?;
+    let scorer = Scorer::new(ruleset);
+
     match cli.command {
-        Command::Score { file, json } => {
-            let text = std::fs::read_to_string(&file)?;
-            let analysis = analyze_text(&text, &file.to_string_lossy());
-            if json {
-                println!("{}", serde_json::to_string_pretty(&analysis)?);
-            } else {
-                println!("{}", score_from_components(&analysis.components));
-            }
+        Commands::Score { file, format } => {
+            let content = fs::read_to_string(&file)?;
+            let result = scorer.score(&content);
+            print_result(&result, &format)?;
         }
-        Command::Analyze { file, compact } => {
-            let text = std::fs::read_to_string(&file)?;
-            let analysis = analyze_text(&text, &file.to_string_lossy());
-            if compact {
-                println!("{}", serde_json::to_string(&analysis)?);
-            } else {
-                println!("{}", serde_json::to_string_pretty(&analysis)?);
-            }
+        Commands::Stdin { format } => {
+            let mut content = String::new();
+            std::io::stdin().read_to_string(&mut content)?;
+            let result = scorer.score(&content);
+            print_result(&result, &format)?;
         }
-        Command::Ralph {
-            file,
-            threshold,
-            max_iterations,
-            output,
-            overwrite,
-            json,
-        } => {
-            let result = run_ralph(
-                &file,
-                threshold,
-                max_iterations,
-                output.as_deref(),
-                overwrite || output.is_none(),
-            )?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&result)?);
-            } else {
-                for iteration in &result.iterations {
-                    println!(
-                        "iteration {}: score={} changed={}",
-                        iteration.iteration, iteration.score, iteration.changed
-                    );
-                    for finding in iteration.top_findings.iter().take(3) {
-                        let line = finding
-                            .line
-                            .map(|line| format!(":{line}"))
-                            .unwrap_or_default();
-                        println!("  - {}{}: {}", finding.category, line, finding.text);
-                    }
-                }
-                let output = result.output.as_deref().unwrap_or("");
+        Commands::Rules => {
+            println!("Loaded {} banned patterns", scorer.ruleset().patterns.len());
+            println!("Loaded {} banned words", scorer.ruleset().words.len());
+            println!();
+            println!("Banned Patterns:");
+            for p in &scorer.ruleset().patterns {
+                println!("  - {} (severity: {}, weight: {})", p.name, p.severity, p.weight);
+            }
+            println!();
+            println!("Banned Words:");
+            for w in &scorer.ruleset().words {
                 println!(
-                    "{}: final_score={} threshold={} {}",
-                    result.status.to_uppercase(),
-                    result.final_score,
-                    result.threshold,
-                    output
+                    "  - {} (replacement: {:?}, weight: {})",
+                    w.word, w.replacement, w.weight
                 );
             }
-            if result.status != "success" {
-                std::process::exit(1);
-            }
-        }
-        Command::CodeSmells {
-            paths,
-            tests,
-            compact,
-        } => {
-            let report = analyze_code_paths(&paths, tests.as_deref())?;
-            if compact {
-                println!("{}", serde_json::to_string(&report)?);
-            } else {
-                println!("{}", serde_json::to_string_pretty(&report)?);
-            }
-        }
-        Command::Mcp {
-            command: McpCommand::Serve,
-        } => {
-            run_mcp_stdio().await?;
         }
     }
+
     Ok(())
 }
 
-mod anyhow_free {
-    pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+fn print_result(
+    result: &scorer::ScoreResult,
+    format: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    match format {
+        "json" => {
+            let json = serde_json::to_string_pretty(result)?;
+            println!("{}", json);
+        }
+        "markdown" => {
+            println!("# AI Slop Score Report\n");
+            println!("**Overall Score:** {:.2}/100\n", result.overall_score);
+            println!("## Matches\n");
+            for m in &result.matches {
+                println!(
+                    "- **{}** (severity: {}, weight: {:.1})\n  - {}\n  - Line: {}\n",
+                    m.pattern_name, m.severity, m.weight, m.description, m.line_number
+                );
+            }
+        }
+        _ => {
+            println!("AI Slop Score: {:.2}/100", result.overall_score);
+            println!("Matches found: {}", result.matches.len());
+            for m in &result.matches {
+                println!(
+                    "  [{}] {} (weight: {:.1}) - Line {}: {}",
+                    m.severity, m.pattern_name, m.weight, m.line_number, m.matched_text
+                );
+            }
+        }
+    }
+    Ok(())
 }

@@ -1,140 +1,116 @@
 ---
-name: ai-slop-cleaner
+title: AI Slop Cleaner
+description: Detect and score AI-generated slop patterns in text documents using a Rust CLI tool with dynamically loaded rules.
 category: writing
-version: 2.3.0
-description: >
-  Score generated prose for AI-slop signals and provide cleanup guidance with
-  the Python/FastMCP server, Rust binary, and deterministic fallback.
+tags: [ai, writing, rust, cli, quality]
 ---
 
-AI Slop Cleaner
+# AI Slop Cleaner
 
-AI Slop Cleaner v2 ships as a Python package, FastMCP server, and Rust binary.
-The detector asks Claude first, tries Codex next, then falls back to regex
-rules, so the same checks work in local CLIs and MCP clients.
+A Rust-based CLI tool that detects and scores AI-generated "slop" patterns in text documents. It uses dynamically loaded rules from markdown tables, allowing the agent to judge patterns without hardcoding them into the binary.
 
-Use
-
-Use it before editing generated prose, when a draft needs a 0-100 AI Slop
-Score, or when Claude, Codex, and MCP clients should share one detector. Keep
-the pass focused on the supplied text. Preserve facts, names, numbers, quotes,
-and code blocks.
-
-Files
-
-The Python entry point is src/ai_slop_cleaner/cli.py. MCP lives in
-src/ai_slop_cleaner/mcp/server.py and src/ai_slop_cleaner/mcp/tools.py.
-Detection and scoring live under src/ai_slop_cleaner/core with detector.py,
-scorer.py, fallback.py, code_smells.py, ralph.py, banned_words.py, and
-banned_patterns.py. The Rust crate in rust/ provides score, analyze, ralph,
-code-smells, and mcp commands.
-
-Tools
-
-ai_slop_score returns score, components, details, detector, and source.
-ai_slop_analyze returns findings, components, document patterns, and score.
-ai_slop_check returns pass or fail with default threshold 25.
-
-Score
-
-The final score uses BWD, SPV, RHY, META, and MD weights of 25, 25, 20, 15,
-and 15. BWD measures banned word and phrase density. SPV counts structural
-patterns. RHY flags flat rhythm. META catches navigation chatter. MD tracks
-needless formatting.
-
-Commands
+## Quick Start
 
 ```bash
-pip install -e '.[dev]'
-ai-slop-cleaner mcp serve
-ai-slop-cleaner score draft.md
-ai-slop-cleaner analyze draft.md
-ai-slop-cleaner code-smells src tests --tests tests
-ai-slop-cleaner ralph draft.md --threshold 25 --max-iterations 5 --output clean.md
+# Build the Rust binary
+cd rust && cargo build --release
 
-cd rust
-cargo build --release
-./target/release/ai-slop-cleaner-rs score ../README.md
-./target/release/ai-slop-cleaner-rs analyze ../README.md
-./target/release/ai-slop-cleaner-rs ralph ../README.md --threshold 25 --max-iterations 5 --output /tmp/clean.md
+# Score a file
+./target/release/ai-slop-cleaner score my-article.md --rules-dir rules/
 
-AI_SLOP_CLEANER_DISABLE_AGENTS=1 ai-slop-cleaner score draft.md
+# Score from stdin
+cat my-article.md | ./target/release/ai-slop-cleaner stdin --rules-dir rules/
+
+# List loaded rules
+./target/release/ai-slop-cleaner rules --rules-dir rules/
 ```
 
-Rust CLI notes
+## Architecture
 
-- The ralph command takes FILE as a positional argument, not --file:
-  `ai-slop-cleaner-rs ralph FILE --threshold 30 --output clean.md`
-- The binary name uses hyphens even if Cargo.toml name has underscores:
-  `target/release/ai-slop-cleaner-rs`, not `ai_slop_cleaner_rs`.
-- Verify with `ai-slop-cleaner-rs --help` before scripting.
+The tool consists of three main components:
 
-Dogfooding workflow
+1. **Pattern Loader** (`src/pattern_loader.rs`): Loads banned patterns and words from markdown tables at runtime. Uses backtick-aware parsing so `|` inside regex alternation is not treated as a column delimiter.
+2. **Scorer** (`src/scorer.rs`): Matches text against loaded rules and calculates an overall slop score. Skips malformed rules with a warning instead of crashing.
+3. **CLI** (`src/main.rs`): Provides commands for scoring files, stdin, and listing rules.
 
-To clean the project's own SKILL.md or README.md:
+## Rule Files
 
-1. Run the Rust ralph command on the file:
-   `./target/release/ai-slop-cleaner-rs ralph SKILL.md --threshold 30 --max-iterations 10`
-2. Review the findings (banned words, structural patterns, markdown overuse).
-3. Edit the source file to fix the top findings.
-4. Re-run ralph until the score drops below the threshold.
-5. Run the full test suite (Python + Rust) to confirm nothing broke.
-6. Commit with a lore commit message.
+Rules are defined in two markdown files:
 
-Codex integration
+### `rules/banned-patterns.md`
 
-- Codex CLI requires a terminal and exits immediately in non-tty environments
-  ("stdin is not a terminal"). Use `omx exec` to provide a terminal session.
-- To register ai-slop-cleaner as an MCP server for Codex, add to
-  ~/.codex/config.toml:
-  ```toml
-  [mcp_servers.ai_slop_cleaner]
-  command = "/path/to/ai-slop-cleaner-rs"
-  args = ["mcp", "serve"]
-  enabled = true
-  startup_timeout_sec = 5
-  ```
+Contains structural patterns (regex) that indicate AI slop:
 
-Detection
+| Name | Severity | Weight | Regex | Description |
+|------|----------|--------|-------|-------------|
+| redefinition | medium | 2.0 | `(?i)(?:\bnot\s+\w+(?:\s+\w+){0,2}\b\|...` | A is not X, it is Y |
+| closing_summary | low | 1.0 | `(?i)\b(to summarize\|in summary\|...)\b` | Closing-summary repetition |
 
-core/detector.py tries claude --print, then codex exec, then core/fallback.py.
-Agent prompts include banned terms, structural patterns, and
-references/agent-response-schema.json. Returned component values stay in the
-0.0 to 1.0 range; scorer.py computes the final integer.
+**Important:** Regex cells are wrapped in backticks (`` `...` ``). The parser is **backtick-aware** — it ignores `|` characters inside backticks, so regex alternation like `delve\|elucidate\|underscore` works correctly. Do not remove the backtick wrappers.
 
-Korean rules
+### `rules/banned-words.md`
 
-Korean rules are in banned_patterns.py as ko_* regexes and are checked by
-tests/test_im_not_ai_coverage.py. They cover translationese, English term
-overuse, mechanical structure, signature phrases, rhythm uniformity, modifier
-overload, hedging, connector overload, formal noun endings, and visual
-decoration. The audit record is references/im-not-ai-audit.md.
+Contains individual words and phrases to flag:
 
-Human cues
+| Word | Replacement | Weight |
+|------|-------------|--------|
+| delve into | explore | 1.0 |
+| furthermore | | 2.0 |
 
-doc_patterns reports optional H.U.M.A.N. markers as diagnostics rather than a
-sixth score component. The checklist is references/human-checklist.md and looks
-at honest flaws, varied structure, specific examples, personal perspective, and
-natural flow.
+## Adding New Rules
 
-Rule audit
+To add a new pattern or word, simply edit the corresponding markdown file. The binary will load it dynamically on the next run — no recompilation needed.
 
-To audit another rule repository, clone it outside this package, extract rules,
-map each rule to banned_patterns.py, add missing ko_* regexes with tests, run
-uv run pytest tests/ -v, then commit the covered source. For broad audits, run
-one omx exec that assigns inventory, gap analysis, and implementation roles.
+## Scoring
 
-Editing
+The overall score is a sum of weights from all matched patterns and words, capped at 100. Severity levels (high/medium/low) help prioritize which issues to fix first.
 
-Only edit where findings point. Prefer plain replacements for banned terms.
-Vary structure and sentence length. Delete meta commentary that does not guide
-use. Treat the score as triage, not as proof of authorship. Re-run score,
-analyze, and the relevant tests before reporting completion.
+## Output Formats
 
-Links
+- `text` (default): Human-readable summary
+- `json`: Machine-parseable output
+- `markdown`: Report suitable for pasting into issues/PRs
 
-Package metadata is pyproject.toml. MCP config lives in .mcp.json and
-.claude-plugin/.mcp.json. Agent instructions live in .claude/CLAUDE.md and
-.codex/instructions.md. Reference docs include agent-driven-spec.md,
-agent-prompt-template.md, banned-words.md, banned-patterns.md,
-im-not-ai-audit.md, and human-checklist.md under references.
+## Key Patterns Detected
+
+- **Redefinition**: "A is not X, it is Y" / "A가 아니라 B다"
+- **Closing summaries**: "In conclusion", "To summarize"
+- **Progress announcements**: "Let's dive in", "Let's explore"
+- **Pre-classification**: "There are three types..."
+- **Mechanical enumeration**: "First... Second... Third..."
+- **Bullet block abuse**: Excessive bullet lists
+- **Generic headings**: "Introduction", "Conclusion"
+- **Topic sentence formulas**: "The important thing is..."
+- **Emoji decoration**: 🚀, 💡, ✅ in prose
+- **Korean translationese**: ~에 대해, ~을 통해, ~에 있어서
+- **Hedging**: "It seems that...", "One could argue..."
+- **Buzzwords**: leverage, harness, delve, pivotal, etc.
+
+## Oh-My-Codex (OMX) Delegation
+
+For automated cleanup, use `scripts/omx-delegate.sh`:
+
+```bash
+./scripts/omx-delegate.sh <input-file> [output-dir]
+```
+
+This script:
+1. Runs the Rust binary to analyze the text
+2. Generates an `omx-context.md` for Codex
+3. Delegates to oh-my-codex with three roles (`$team`, `$ralph`, `$ultrawork`)
+4. Iteratively cleans the text until the score drops below 15.0 (max 3 rounds)
+
+**Note:** If the global `codex` CLI is outdated and can't use newer models like `gpt-5.5`, the script falls back to `npx @openai/codex@latest exec` which always pulls the latest version.
+
+## Troubleshooting
+
+### Regex compilation errors
+If you see `RegexError` warnings, check that:
+- Regex cells in `banned-patterns.md` are wrapped in backticks
+- `\|` is used for alternation (not bare `|` which would break the markdown table)
+- Unicode ranges like `\uac00-\ud7a3` are properly escaped
+
+### OMX delegation fails
+If `codex exec` fails with "model requires a newer version":
+- The script auto-detects this and uses `npx @openai/codex@latest` instead
+- Alternatively, update the global package: `npm install -g @openai/codex@latest`

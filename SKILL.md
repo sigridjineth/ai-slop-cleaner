@@ -1,7 +1,7 @@
 ---
 name: ai-slop-cleaner
 category: writing
-version: 2.2.0
+version: 2.3.0
 description: >
   Score generated prose for AI-slop signals and provide cleanup guidance with
   the Python/FastMCP server, Rust binary, and deterministic fallback.
@@ -60,6 +60,40 @@ cargo build --release
 
 AI_SLOP_CLEANER_DISABLE_AGENTS=1 ai-slop-cleaner score draft.md
 ```
+
+Rust CLI notes
+
+- The ralph command takes FILE as a positional argument, not --file:
+  `ai-slop-cleaner-rs ralph FILE --threshold 30 --output clean.md`
+- The binary name uses hyphens even if Cargo.toml name has underscores:
+  `target/release/ai-slop-cleaner-rs`, not `ai_slop_cleaner_rs`.
+- Verify with `ai-slop-cleaner-rs --help` before scripting.
+
+Dogfooding workflow
+
+To clean the project's own SKILL.md or README.md:
+
+1. Run the Rust ralph command on the file:
+   `./target/release/ai-slop-cleaner-rs ralph SKILL.md --threshold 30 --max-iterations 10`
+2. Review the findings (banned words, structural patterns, markdown overuse).
+3. Edit the source file to fix the top findings.
+4. Re-run ralph until the score drops below the threshold.
+5. Run the full test suite (Python + Rust) to confirm nothing broke.
+6. Commit with a lore commit message.
+
+Codex integration
+
+- Codex CLI requires a terminal and exits immediately in non-tty environments
+  ("stdin is not a terminal"). Use `omx exec` to provide a terminal session.
+- To register ai-slop-cleaner as an MCP server for Codex, add to
+  ~/.codex/config.toml:
+  ```toml
+  [mcp_servers.ai_slop_cleaner]
+  command = "/path/to/ai-slop-cleaner-rs"
+  args = ["mcp", "serve"]
+  enabled = true
+  startup_timeout_sec = 5
+  ```
 
 Detection
 

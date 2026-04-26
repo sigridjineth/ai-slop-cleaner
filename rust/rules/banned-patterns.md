@@ -38,7 +38,7 @@ Loaded by the Rust binary at runtime from `rules/banned-patterns.md`.
 | ko_A14_and_sentence | korean | medium | 1.0 | `(?m)^\s*그리고\b` | sentence-initial '그리고'. |
 | ko_A15_abstract_subject | korean | medium | 1.5 | `[가-힣A-Za-z0-9'""\s]{1,40}(?:은|는|이|가)\s+[^.!?\n]{0,50}(?:보여준(?:다|다\.|다는|습니다)|제공(?:한다|합니다)|가져온(?:다|다는)|시사(?:한다|합니다)|흔들고\s+있(?:다|습니다))` | abstract subject plus all-purpose verb. |
 | ko_B1_parenthesized_english | korean | medium | 1.0 | `[가-힣]{2,}\s*\([A-Za-z][A-Za-z0-9 ._/-]{1,40}\)` | Korean term with English parenthetical. |
-| ko_B2_raw_english_term | universal | medium | 1.0 | `(?i)(?:framework|pipeline|leverage|seamless|robust|scalable|insight|impact|holistic)` | untranslated English buzzword. |
+| ko_B2_raw_english_term | korean | medium | 1.0 | `(?i)(?:framework|pipeline|leverage|seamless|robust|scalable|insight|impact|holistic)` | untranslated English buzzword. |
 | ko_B3_long_english_quote | korean | medium | 1.0 | `[""][A-Za-z][^""\n]{20,}[""]` | long English quote in Korean prose. |
 | ko_B4_known_as | korean | low | 0.5 | `(?:라고\s+알려진|로\s+일컬어지는)` | '~라고 알려진/~로 일컬어지는'. |
 | ko_C1_mechanical_enumeration | korean | high | 2.0 | `(?s)첫째.{0,240}둘째.{0,240}셋째` | mechanical enumeration. |

@@ -1,1 +1,8 @@
-{"mcpServers":{"ai-slop-cleaner":{"command":"ai-slop-cleaner","args":["serve"],"timeout":300}}}
+{
+  "mcpServers": {
+    "ai-slop-cleaner": {
+      "command": "uvx",
+      "args": ["--from", "ai-slop-cleaner", "ai-slop-cleaner", "mcp", "serve"]
+    }
+  }
+}

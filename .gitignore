@@ -1,3 +1,10 @@
 .omx/
 scripts/ai-slop-cleaner
 *.exe
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+build/
+dist/
+*.egg-info/

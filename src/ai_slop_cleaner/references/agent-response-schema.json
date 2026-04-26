@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Slop Cleaner Agent Response",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["findings", "components"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["category", "severity", "text"],
+        "properties": {
+          "span": {
+            "type": ["array", "null"],
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"type": "integer", "minimum": 0},
+            "description": "Character offsets [start, end] in the analyzed text when available."
+          },
+          "line": {"type": ["integer", "null"], "minimum": 1},
+          "category": {
+            "type": "string",
+            "enum": [
+              "banned_word",
+              "banned_phrase",
+              "structural_pattern",
+              "rhythm_issue",
+              "markdown_overuse",
+              "meta_commentary",
+              "over_polish",
+              "unknown"
+            ]
+          },
+          "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+          "text": {"type": "string"},
+          "context": {"type": "string"},
+          "suggested_fix": {"type": "string"},
+          "evidence": {"type": "string"}
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["BWD", "SPV", "RHY", "META", "MD"],
+      "properties": {
+        "BWD": {"type": "number", "minimum": 0, "maximum": 1},
+        "SPV": {"type": "number", "minimum": 0, "maximum": 1},
+        "RHY": {"type": "number", "minimum": 0, "maximum": 1},
+        "META": {"type": "number", "minimum": 0, "maximum": 1},
+        "MD": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "details": {"type": "object"},
+    "doc_patterns": {"type": "object"}
+  }
+}

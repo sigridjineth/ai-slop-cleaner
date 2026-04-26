@@ -1,119 +1,119 @@
 # AI Slop Cleaner
 
-A Hermes skill that detects and removes the tell-tale signs of AI-generated prose — the repetitive phrasing, stiff vocabulary, uniform rhythm, and meta commentary that make readers suspect a machine wrote the text.
+AI Slop Cleaner is an agent-driven Python package and FastMCP server for scoring
+AI-slop signals in prose. It follows the same package/MCP pattern as Ouroboros:
+Python package, `pyproject.toml`, FastMCP server, MCP tools, Claude plugin config,
+and a CLI entry point.
 
-## What it does
+## What it provides
 
-- **Detects** AI slop markers in any prose document.
-- **Scores** the overall "AI sloppiness" of a text on a 0–100 scale.
-- **Guides** rewrite work with a 5-stage pipeline, 20-point checklist, and H.U.M.A.N. framework.
+- **MCP server:** `ai-slop-cleaner mcp serve`
+- **MCP tools:** `ai_slop_score`, `ai_slop_analyze`, `ai_slop_check`
+- **Agent-driven detector:** tries `claude --print`, then `codex exec`
+- **Regex fallback:** deterministic detection when no AI agent is available
+- **Score aggregation:** five weighted components on a 0-100 scale
 
-## Installation
-
-No installation required. The skill is self-contained within `~/.hermes/skills/ai-slop-cleaner`.
-
-### CLI (optional)
-
-The Go CLI runs without external dependencies and needs only Go 1.20+:
+## Install for development
 
 ```bash
-cd scripts
-go build ai-slop-cleaner.go
+pip install -e '.[dev]'
 ```
+
+The package depends on `mcp[cli]` and uses FastMCP.
 
 ## Quick start
 
-### 1. Run the detector on a file
+```bash
+# Start the MCP server over stdio
+ai-slop-cleaner mcp serve
+
+# Score a file; prints one integer by default
+ai-slop-cleaner score draft.md
+
+# Full JSON analysis
+ai-slop-cleaner analyze draft.md
+
+# Force deterministic fallback instead of spawning agents
+AI_SLOP_CLEANER_DISABLE_AGENTS=1 ai-slop-cleaner analyze draft.md
+```
+
+## MCP configuration
+
+`.mcp.json` and `.claude-plugin/.mcp.json` both register the server through uvx:
+
+```json
+{
+  "mcpServers": {
+    "ai-slop-cleaner": {
+      "command": "uvx",
+      "args": ["--from", "ai-slop-cleaner", "ai-slop-cleaner", "mcp", "serve"]
+    }
+  }
+}
+```
+
+## Architecture
+
+```text
+src/ai_slop_cleaner/
+├── __init__.py
+├── cli.py
+├── mcp/
+│   ├── __init__.py
+│   ├── server.py
+│   └── tools.py
+└── core/
+    ├── __init__.py
+    ├── detector.py
+    ├── scorer.py
+    ├── fallback.py
+    ├── banned_words.py
+    └── banned_patterns.py
+```
+
+`core/detector.py` builds an agent prompt from reference files and calls runtimes
+in this order:
+
+1. `claude --print`
+2. `codex exec`
+3. regex fallback
+
+The fallback ports the essential behavior from the old Go CLI: it skips fenced
+code blocks, strips inline code, honors `.slopignore`, loads the banned-word and
+banned-pattern references, and computes the same five component keys.
+
+## AI Slop Score
+
+```text
+Score = round(100 * (0.25*BWD + 0.25*SPV + 0.20*RHY + 0.15*META + 0.15*MD))
+```
+
+| Component | Weight | Meaning |
+| --- | ---: | --- |
+| `BWD` | 25% | Banned word and phrase density |
+| `SPV` | 25% | Structural pattern violations |
+| `RHY` | 20% | Rhythm monotony |
+| `META` | 15% | Meta commentary density |
+| `MD` | 15% | Markdown overuse |
+
+The score is editing triage, not proof of authorship.
+
+## References
+
+- `references/banned-words.md` — canonical word and phrase taxonomy.
+- `references/banned-patterns.md` — structural anti-pattern taxonomy.
+- `references/agent-driven-spec.md` — v2 architecture spec.
+- `references/agent-prompt-template.md` — prompt sent to subagents.
+- `references/agent-response-schema.json` — expected JSON response schema.
+
+## Tests
 
 ```bash
-go run scripts/ai-slop-cleaner.go -input draft.md -output report.md
+pip install -e '.[dev]'
+python -m pytest tests/ -v
 ```
 
-### 2. Pipe from stdin
-
-```bash
-cat draft.md | go run scripts/ai-slop-cleaner.go -output report.md
-```
-
-### 3. Get a single AI Slop Score
-
-```bash
-cat draft.md | go run scripts/ai-slop-cleaner.go -score
-# Output: 42
-```
-
-The score is an integer from 0 (clean) to 100 (dense AI slop). It combines:
-
-| Component | Weight | What it measures |
-|-----------|--------|------------------|
-| Banned word density | 25% | Overused AI vocabulary (delve, leverage, landscape, etc.) |
-| Structural violations | 25% | Repeated templates, redefinition sentences, list cadence |
-| Rhythm monotony | 20% | Uniform sentence length, repeated openers/endings |
-| Meta commentary | 15% | "In this section we will...", "Let's dive in" |
-| Markdown overuse | 15% | Excessive bullets, bold, headings, tables |
-
-### 4. Use `.slopignore`
-
-Create a `.slopignore` file to skip lines matching regex patterns (useful for tables or code blocks):
-
-```
-^\|.*\|.*\|$
-^```
-```
-
-## Skill structure
-
-```
-ai-slop-cleaner/
-├── SKILL.md                       # Main skill definition
-├── README.md                      # This file
-├── .claude/
-│   └── CLAUDE.md                  # Claude Code agent instructions
-├── .codex/
-│   └── instructions.md          # Codex CLI agent instructions
-├── .opencode/
-│   └── instructions.md          # OpenCode agent instructions
-├── references/
-│   ├── banned-words.md          # Full banned-word taxonomy
-│   ├── banned-patterns.md       # Structural anti-patterns
-│   ├── human-checklist.md       # Quick-reference checklist
-│   └── slop-score-spec.md       # AI Slop Score specification
-└── scripts/
-    └── ai-slop-cleaner.go       # Go CLI detector + scorer
-```
-
-## 5-Stage Pipeline
-
-1. **AI-Tell Detector** — Scan and flag banned words, structural patterns, rhythm issues, markdown overuse, and meta commentary.
-2. **Style Rewriter** — Rewrite only flagged spans. Replace AI vocabulary with plain English, vary sentence length, fold short lists into prose.
-3. **Fidelity Auditor** — Verify semantic identity: facts, numbers, names, quotes, technical terms, logical relationships, and code blocks must be preserved exactly.
-4. **Naturalness Reviewer** — Read aloud mentally. Score 1–10. Trigger a second rewrite round if below 7.
-5. **Orchestrator** — Accept, rewrite again, roll back, or hold for human review.
-
-## H.U.M.A.N. Framework
-
-Five lenses to keep the rewrite grounded:
-
-- **H — Honest human flaws.** Mild uncertainty or conversational turns are fine.
-- **U — Unpredictable structure.** Vary paragraph length and rhythm section by section.
-- **M — Memorable specifics.** Keep dates, numbers, product names, real situations.
-- **A — Authentic perspective.** Preserve or clarify point of view.
-- **N — Natural flow.** Connect ideas conversationally.
-
-## Core rules
-
-- **No finding, no edit.** If the detector does not flag a span, leave it untouched.
-- **Redefinition sentences are forbidden.** Never write "A is not X; it is Y." Say what it is directly.
-- **Track rewrite distance.** >30% words changed → warn. >50% → stop and request review.
-- **Preserve everything.** Facts, numbers, names, dates, quotes, technical terms, and code blocks stay exactly as they are.
-
-## Agent instructions
-
-Each supported AI agent has its own instruction file tuned to its context-window size and interaction style:
-
-- **Claude Code** → `.claude/CLAUDE.md` (detailed, context-heavy)
-- **Codex CLI** → `.codex/instructions.md` (concise, structured)
-- **OpenCode** → `.opencode/instructions.md` (directive, compact)
+If the `python` executable is not present on your system, use `python3`.
 
 ## License
 

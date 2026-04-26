@@ -1,0 +1,35 @@
+[project]
+name = "ai-slop-cleaner"
+version = "2.0.0"
+description = "Agent-driven MCP server and CLI for scoring AI-slop signals in prose."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "ai-slop-cleaner maintainers" }]
+dependencies = [
+    "mcp[cli]>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+ai-slop-cleaner = "ai_slop_cleaner.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ai_slop_cleaner = ["references/*.md", "references/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

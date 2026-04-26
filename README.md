@@ -1,9 +1,9 @@
 # AI Slop Cleaner
 
 AI Slop Cleaner is an agent-driven Python package and FastMCP server for scoring
-AI-slop signals in prose. It follows the same package/MCP pattern as Ouroboros:
-Python package, `pyproject.toml`, FastMCP server, MCP tools, Claude plugin config,
-and a CLI entry point.
+AI-slop signals in prose. The design mirrors Ouroboros — a Python package with
+`pyproject.toml`, a FastMCP server, MCP tools, a Claude plugin config, and a CLI
+entry point.
 
 ## What it provides
 
@@ -96,7 +96,8 @@ Score = round(100 * (0.25*BWD + 0.25*SPV + 0.20*RHY + 0.15*META + 0.15*MD))
 | `META` | 15% | Meta commentary density |
 | `MD` | 15% | Markdown overuse |
 
-The score is editing triage, not proof of authorship.
+Use the score to decide how much editing a draft needs. A low score means the
+text already reads naturally. A high score points to sections worth rewriting.
 
 ## References
 

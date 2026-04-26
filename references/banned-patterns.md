@@ -204,6 +204,26 @@ Weave field names into natural sentences. Never dump them after a colon.
 
 ---
 
+## 13a. Colon enumeration (comma-list after colon)
+
+A sentence ending with a colon followed by a comma-separated list of items is a strong AI signal.
+
+**Bad:**
+> "It follows the same pattern as Ouroboros: Python package, pyproject.toml, FastMCP server, MCP tools."
+
+**Good:**  
+> "It mirrors Ouroboros — a Python package with pyproject.toml, a FastMCP server, and MCP tools."
+
+**Also bad:**
+> "The stack includes: React, TypeScript, and Tailwind."
+
+**Good:**  
+> "The stack uses React, TypeScript, and Tailwind."
+
+If the list is short, fold it into the sentence. If the list is long, use a bullet list with full sentences, not comma-separated fragments.
+
+---
+
 ## 14. Pre-classification framing
 
 "There are three types of..." sets up a taxonomy before the reader cares.

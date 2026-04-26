@@ -44,6 +44,12 @@ BROAD_FIELD_DUMP_RE = re.compile(
 POST_CODE_NARRATION_RE = re.compile(
     r"(?i)\b(first|then|next)\s+(?:we|the code|this)|\bwe\s+(?:define|create|call|return)\b"
 )
+COLON_ENUMERATION_RE = re.compile(
+    r"(?i)[a-z]{3,}(?:\s+[a-z]+){0,4}\s*[:;]\s*(?:[a-z`][\w\-`]*(?:,\s*and\s+)?){2,}"
+)
+A_NOT_B_RE = re.compile(
+    r"(?i)\b(?:is|are|was|were)\s+not\s+[a-z]+(?:\s+[a-z]+){0,3}\s*[,;]\s*(?:it\s+)?(?:is|are|was|were)\b|\bnot\s+[a-z]+(?:\s+[a-z]+){0,3}\s+but\s+(?:is\s+)?[a-z]+"
+)
 
 META_REGEXES: tuple[Pattern[str], ...] = (
     re.compile(r"(?i)\bin this section\b"),
@@ -111,6 +117,22 @@ STRUCTURAL_PATTERNS: tuple[StructuralPattern, ...] = (
         1.5,
         BROAD_FIELD_DUMP_RE,
         "Broad overview followed by a field dump.",
+    ),
+    StructuralPattern(
+        "colon_enumeration",
+        "structural_pattern",
+        "medium",
+        1.5,
+        COLON_ENUMERATION_RE,
+        "Colon followed by a comma-separated list of items.",
+    ),
+    StructuralPattern(
+        "a_not_b_redefinition",
+        "structural_pattern",
+        "high",
+        2.5,
+        A_NOT_B_RE,
+        "A is not X, it is Y redefinition pattern.",
     ),
 )
 

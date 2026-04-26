@@ -69,6 +69,15 @@ ai-slop-cleaner code-smells src tests --tests tests
 ai-slop-cleaner ralph draft.md --threshold 25 --max-iterations 5 --output clean.md
 ```
 
+Rust single-binary build:
+
+```bash
+cd rust
+cargo build --release
+./target/release/ai-slop-cleaner-rs score ../README.md
+./target/release/ai-slop-cleaner-rs mcp serve
+```
+
 For local tests or deterministic runs:
 
 ```bash
@@ -171,3 +180,4 @@ If using findings to rewrite text:
 - `tests/test_im_not_ai_coverage.py` — Korean pattern regression tests.
 - `tests/test_code_smells.py` — code-smell detector regression tests.
 - `tests/test_ralph.py` — Ralph mode regression tests.
+- `rust/` — Rust single-binary implementation with score/analyze/ralph/code-smells/MCP commands.

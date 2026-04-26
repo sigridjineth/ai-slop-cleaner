@@ -47,6 +47,33 @@ ai-slop-cleaner ralph draft.md --threshold 25 --max-iterations 5 --output clean.
 AI_SLOP_CLEANER_DISABLE_AGENTS=1 ai-slop-cleaner analyze draft.md
 ```
 
+## Rust single-binary build
+
+The Rust port lives in `rust/` and packages the scorer, analyzer, Ralph loop,
+code-smell detector, and stdio MCP server into one binary.
+
+```bash
+cd rust
+cargo test
+cargo build --release
+
+# Score a file from the Rust binary
+./target/release/ai-slop-cleaner-rs score ../README.md
+
+# Full analysis and cleanup helpers
+./target/release/ai-slop-cleaner-rs analyze ../README.md
+./target/release/ai-slop-cleaner-rs code-smells ../src ../tests --tests ../tests
+./target/release/ai-slop-cleaner-rs ralph ../draft.md --threshold 25 --output ../clean.md
+
+# MCP over stdio
+./target/release/ai-slop-cleaner-rs mcp serve
+```
+
+The Rust implementation uses the same five component keys (`BWD`, `SPV`,
+`RHY`, `META`, `MD`), includes the English banned-word catalogue and Korean
+pattern coverage, reports H.U.M.A.N. Framework diagnostics, and mirrors the
+Python code-smell/Ralph workflows for environments that prefer a single binary.
+
 ## MCP configuration
 
 `.mcp.json` and `.claude-plugin/.mcp.json` both register the server through uvx:
@@ -129,6 +156,7 @@ text already reads naturally. A high score points to sections worth rewriting.
 - `references/agent-driven-spec.md` — v2 architecture spec.
 - `references/agent-prompt-template.md` — prompt sent to subagents.
 - `references/agent-response-schema.json` — expected JSON response schema.
+- `rust/` — Rust single-binary implementation with CLI and MCP stdio server.
 
 ## Tests
 

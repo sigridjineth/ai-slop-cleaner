@@ -3,62 +3,46 @@ name: ai-slop-cleaner
 category: writing
 version: 2.2.0
 description: >
-  Detect AI-slop signals in prose with an agent-driven Python/FastMCP server.
-  Use it to score generated text, identify suspicious spans, and guide surgical
-  humanization while preserving the original meaning.
+  Score generated prose for AI-slop signals and provide cleanup guidance with
+  the Python/FastMCP server, Rust binary, and deterministic fallback.
 ---
 
-# AI Slop Cleaner
+AI Slop Cleaner
 
-AI Slop Cleaner v2 is a Python package and MCP server modeled after the
-Ouroboros architecture: MCP tools call a detector, the detector delegates to AI
-agent CLIs when available, and a deterministic regex fallback keeps the tool
-usable everywhere.
+AI Slop Cleaner v2 ships as a Python package, FastMCP server, and Rust binary.
+The detector asks Claude first, tries Codex next, then falls back to regex
+rules, so the same checks work in local CLIs and MCP clients.
 
-## When to use this skill
+Use
 
-- You need to identify AI-output tells before editing prose.
-- You want a 0-100 AI Slop Score with the five component subscores.
-- You want Claude, Codex, or any MCP client to call the same detector.
+Use it before editing generated prose, when a draft needs a 0-100 AI Slop
+Score, or when Claude, Codex, and MCP clients should share one detector. Keep
+the pass focused on the supplied text. Preserve facts, names, numbers, quotes,
+and code blocks.
 
-## Architecture
+Files
 
-```text
-src/ai_slop_cleaner/
-├── cli.py                         # ai-slop-cleaner mcp serve|score|analyze
-├── mcp/server.py                  # FastMCP server
-├── mcp/tools.py                   # ai_slop_score/analyze/check
-└── core/
-    ├── detector.py                # claude --print -> codex exec -> fallback
-    ├── scorer.py                  # 5-component weighted score formula
-    ├── fallback.py                # regex fallback
-    ├── code_smells.py            # Python/JS/Rust code smell detector
-    ├── ralph.py                  # iterative cleanup loop
-    ├── banned_words.py            # references/banned-words.md loader
-    └── banned_patterns.py         # references/banned-patterns.md loader
-```
+The Python entry point is src/ai_slop_cleaner/cli.py. MCP lives in
+src/ai_slop_cleaner/mcp/server.py and src/ai_slop_cleaner/mcp/tools.py.
+Detection and scoring live under src/ai_slop_cleaner/core with detector.py,
+scorer.py, fallback.py, code_smells.py, ralph.py, banned_words.py, and
+banned_patterns.py. The Rust crate in rust/ provides score, analyze, ralph,
+code-smells, and mcp commands.
 
-## MCP tools
+Tools
 
-- `ai_slop_score` — returns `score`, `components`, details, detector, and source.
-- `ai_slop_analyze` — returns findings, components, document patterns, and score.
-- `ai_slop_check` — returns pass/fail. Passing means score `<= 25` by default.
+ai_slop_score returns score, components, details, detector, and source.
+ai_slop_analyze returns findings, components, document patterns, and score.
+ai_slop_check returns pass or fail with default threshold 25.
 
-## Score formula
+Score
 
-```text
-Score = round(100 * (0.25*BWD + 0.25*SPV + 0.20*RHY + 0.15*META + 0.15*MD))
-```
+The final score uses BWD, SPV, RHY, META, and MD weights of 25, 25, 20, 15,
+and 15. BWD measures banned word and phrase density. SPV counts structural
+patterns. RHY flags flat rhythm. META catches navigation chatter. MD tracks
+needless formatting.
 
-Components:
-
-- `BWD` — banned word and phrase density.
-- `SPV` — structural pattern violations.
-- `RHY` — rhythm monotony.
-- `META` — meta commentary density.
-- `MD` — markdown overuse.
-
-## CLI usage
+Commands
 
 ```bash
 pip install -e '.[dev]'
@@ -67,117 +51,56 @@ ai-slop-cleaner score draft.md
 ai-slop-cleaner analyze draft.md
 ai-slop-cleaner code-smells src tests --tests tests
 ai-slop-cleaner ralph draft.md --threshold 25 --max-iterations 5 --output clean.md
-```
 
-Rust single-binary build:
-
-```bash
 cd rust
 cargo build --release
 ./target/release/ai-slop-cleaner-rs score ../README.md
-./target/release/ai-slop-cleaner-rs mcp serve
-```
+./target/release/ai-slop-cleaner-rs analyze ../README.md
+./target/release/ai-slop-cleaner-rs ralph ../README.md --threshold 25 --max-iterations 5 --output /tmp/clean.md
 
-For local tests or deterministic runs:
-
-```bash
 AI_SLOP_CLEANER_DISABLE_AGENTS=1 ai-slop-cleaner score draft.md
 ```
 
-## Agent-driven detection
+Detection
 
-`core/detector.py` tries these paths in order:
+core/detector.py tries claude --print, then codex exec, then core/fallback.py.
+Agent prompts include banned terms, structural patterns, and
+references/agent-response-schema.json. Returned component values stay in the
+0.0 to 1.0 range; scorer.py computes the final integer.
 
-1. `claude --print`
-2. `codex exec`
-3. `core/fallback.py`
+Korean rules
 
-The prompt sent to agents includes the banned-word list, structural-pattern list,
-and `references/agent-response-schema.json`. Agents return component values in
-`0.0..1.0`; the package computes the final score.
+Korean rules are in banned_patterns.py as ko_* regexes and are checked by
+tests/test_im_not_ai_coverage.py. They cover translationese, English term
+overuse, mechanical structure, signature phrases, rhythm uniformity, modifier
+overload, hedging, connector overload, formal noun endings, and visual
+decoration. The audit record is references/im-not-ai-audit.md.
 
-## Korean AI slop detection
+Human cues
 
-The package includes extensive Korean-language pattern coverage derived from
-external sources (e.g. `epoko77-ai/im-not-ai`). Categories include:
+doc_patterns reports optional H.U.M.A.N. markers as diagnostics rather than a
+sixth score component. The checklist is references/human-checklist.md and looks
+at honest flaws, varied structure, specific examples, personal perspective, and
+natural flow.
 
-| Category | Count | Examples |
-|---|---|---|
-| A — Translationese | 15 | `~에 대해(서)`, `~를 통해`, `~에 있어(서)`, `~할 수 있다` |
-| B — English term/quote overuse | 4 | Parenthesized English, raw buzzwords, long quotes |
-| C — Structural AI patterns | 10 | `첫째/둘째/셋째`, bullet blocks, generic headings, binary parallelism |
-| D — Signature Korean AI phrases | 7 | Conclusion formulas, hype words, personified abstract subjects |
-| E — Rhythm uniformity | 3 | Low sentence-length variation, repeated endings, uniform paragraphs |
-| F — Modifier/abstraction overload | 5 | Degree adverbs, double modifiers, `~적 N` chains |
-| G — Hedging | 2 | Hedge endings, double/triple hedges |
-| H — Connector overload | 4 | Sentence-initial connectors, `하지만/그러나`, `즉` |
-| I — Formal/dependent noun overload | 6 | `~것이다`, dependent nouns, `~할 필요가 있다` |
-| J — Visual decoration overload | 4 | Bold emphasis, quote emphasis, em dash, parenthetical asides |
+Rule audit
 
-All 60 rules are implemented as `ko_*` regex patterns in `banned_patterns.py`
-and validated by `tests/test_im_not_ai_coverage.py`.
+To audit another rule repository, clone it outside this package, extract rules,
+map each rule to banned_patterns.py, add missing ko_* regexes with tests, run
+uv run pytest tests/ -v, then commit the covered source. For broad audits, run
+one omx exec that assigns inventory, gap analysis, and implementation roles.
 
-## H.U.M.A.N. Framework diagnostics
+Editing
 
-Positive human-quality signals are reported in `doc_patterns.human_framework`
-instead of adding a sixth score component:
+Only edit where findings point. Prefer plain replacements for banned terms.
+Vary structure and sentence length. Delete meta commentary that does not guide
+use. Treat the score as triage, not as proof of authorship. Re-run score,
+analyze, and the relevant tests before reporting completion.
 
-| Element | Markers | Coverage |
-|---|---|---|
-| H — Honest human flaws | `솔직히 말하면`, `to be fair`, `honestly` | RHY/SPV absence |
-| U — Unpredictable structure | Varying paragraph/sentence lengths | RHY + SPV |
-| M — Memorable specifics | Numbers, dates, `예를 들어` | doc_patterns diagnostic |
-| A — Authentic perspective | `제 경험으로는`, `개인적으로` | doc_patterns diagnostic |
-| N — Natural flow | Conversational connectors | SPV + RHY opener repetition |
+Links
 
-## Bulk external-rule audit with omx
-
-To audit coverage against an external rule repository (e.g. `im-not-ai`):
-
-1. Clone the external repo and extract all detection rules.
-2. Map each rule to existing `banned_patterns.py` patterns.
-3. Implement missing rules as `ko_*` regexes with test cases.
-4. Run `uv run pytest tests/ -v` to verify.
-5. Commit as `audit: cover all <source> + HUMAN framework rules`.
-
-Use a **single omx exec** with `$team` (inventory), `$ralph` (gap analysis),
-and `$ultrawork` (implementation) roles in one prompt for efficiency.
-
-## Editing discipline
-
-If using findings to rewrite text:
-
-- No finding, no edit.
-- Preserve meaning, facts, numbers, named entities, quotes, and code blocks.
-- Replace banned words with plain equivalents.
-- Break repeated structure and vary rhythm.
-- Remove meta commentary unless it is necessary navigation.
-- Treat the score as triage, never as proof of authorship.
-
-## Linked files
-
-- `pyproject.toml` — uv/pip Python package metadata.
-- `src/ai_slop_cleaner/mcp/server.py` — FastMCP server.
-- `src/ai_slop_cleaner/mcp/tools.py` — MCP tool functions.
-- `src/ai_slop_cleaner/core/detector.py` — agent delegation.
-- `src/ai_slop_cleaner/core/fallback.py` — deterministic fallback.
-- `src/ai_slop_cleaner/core/code_smells.py` — code cleanup smell detector.
-- `src/ai_slop_cleaner/core/ralph.py` — iterative Ralph cleanup loop.
-- `src/ai_slop_cleaner/core/banned_patterns.py` — regex patterns (English + Korean).
-- `src/ai_slop_cleaner/core/banned_words.py` — banned word taxonomy loader.
-- `src/ai_slop_cleaner/core/scorer.py` — 5-component weighted score formula.
-- `.claude-plugin/.mcp.json` — Claude plugin MCP config.
-- `.mcp.json` — project-level MCP config.
-- `.claude/CLAUDE.md` — Claude detection-subagent instructions.
-- `.codex/instructions.md` — Codex detection-subagent instructions.
-- `references/agent-driven-spec.md` — architecture spec.
-- `references/agent-prompt-template.md` — subagent prompt template.
-- `references/agent-response-schema.json` — expected subagent JSON schema.
-- `references/banned-words.md` — canonical banned-word taxonomy.
-- `references/banned-patterns.md` — canonical structural-pattern taxonomy.
-- `references/im-not-ai-audit.md` — external rule coverage audit report.
-- `references/human-checklist.md` — H.U.M.A.N. Framework 20-point checklist.
-- `tests/test_im_not_ai_coverage.py` — Korean pattern regression tests.
-- `tests/test_code_smells.py` — code-smell detector regression tests.
-- `tests/test_ralph.py` — Ralph mode regression tests.
-- `rust/` — Rust single-binary implementation with score/analyze/ralph/code-smells/MCP commands.
+Package metadata is pyproject.toml. MCP config lives in .mcp.json and
+.claude-plugin/.mcp.json. Agent instructions live in .claude/CLAUDE.md and
+.codex/instructions.md. Reference docs include agent-driven-spec.md,
+agent-prompt-template.md, banned-words.md, banned-patterns.md,
+im-not-ai-audit.md, and human-checklist.md under references.

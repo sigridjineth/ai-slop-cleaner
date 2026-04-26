@@ -111,11 +111,44 @@ Loaded by the Rust binary at runtime from `rules/banned-words.md`.
 | in some cases | | 2.0 |
 | to a certain extent | | 2.0 |
 | by and large | | 2.0 |
+| plays a crucial role | matters | 2.0 |
+| paving the way for | enabling | 2.0 |
+| stands as a testament | proves | 2.0 |
+| it goes without saying | | 2.0 |
+| needless to say | | 2.0 |
+| at the forefront of | leading | 2.0 |
+| on the cutting edge | latest | 2.0 |
+| a deep dive into | a look at | 2.0 |
+| the landscape of | | 2.0 |
+| in the realm of | in | 2.0 |
+| a testament to | proof of | 2.0 |
+| shed light on | explain | 2.0 |
+| it bears mentioning | | 2.0 |
+| serves as a reminder | reminds us | 2.0 |
+| the beauty of | | 2.0 |
+| in this day and age | today | 2.0 |
+| the fact of the matter is | | 2.0 |
+| this begs the question | this raises the question | 2.0 |
 | pipeline | flow | 1.0 |
 | framework | system | 1.0 |
 | scalable | able to grow | 1.0 |
 | insight | finding | 1.0 |
 | impact | effect | 1.0 |
+| myriad | many | 1.0 |
+| plethora | many | 1.0 |
+| facilitate | help | 1.0 |
+| utilize | use | 1.0 |
+| paradigm | model | 1.0 |
+| ecosystem | system | 1.0 |
+| empower | enable | 1.0 |
+| spearhead | lead | 1.0 |
+| catalyze | trigger | 1.0 |
+| demystify | explain | 1.0 |
+| juxtapose | compare | 1.0 |
+| underpin | support | 1.0 |
+| proliferate | spread | 1.0 |
+| burgeoning | growing | 1.0 |
+| indispensable | essential | 1.0 |
 
 ## Korean Buzzwords
 

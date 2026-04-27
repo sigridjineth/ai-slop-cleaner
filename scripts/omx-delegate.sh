@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # AI-Slop-Cleaner OMX Delegation Wrapper
-# Usage is ./omx-delegate.sh <input-file> [output-dir]
+# Usage: ./omx-delegate.sh <input-file> [output-dir]
 #
-# This script orchestrates the ai-slop-cleaner Rust binary through oh-my-codex
-# by running analysis, generating a TASK.md context, and delegating cleanup.
+# Runs the Rust analyze subcommand, packages raw structural matches plus the
+# universal agent categories, and asks an LLM/Codex agent to rewrite the complete
+# text by inference. This script never asks agents to regex-replace text.
 
 set -euo pipefail
 
@@ -11,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BINARY="${PROJECT_ROOT}/rust/target/release/ai-slop-cleaner"
 RULES_DIR="${PROJECT_ROOT}/rust/rules"
+PATTERNS_AGENT="${RULES_DIR}/patterns-agent.md"
 
 INPUT_FILE="${1:-}"
 OUTPUT_DIR="${2:-${PROJECT_ROOT}/.omx/output}"
@@ -20,88 +22,95 @@ if [[ -z "${INPUT_FILE}" ]]; then
     exit 1
 fi
 
+if [[ ! -f "${INPUT_FILE}" ]]; then
+    echo "Input file not found: ${INPUT_FILE}"
+    exit 1
+fi
+
 if [[ ! -f "${BINARY}" ]]; then
     echo "Binary not found at ${BINARY}. Building..."
-    cd "${PROJECT_ROOT}/rust"
-    cargo build --release
+    cargo build --release --manifest-path "${PROJECT_ROOT}/rust/Cargo.toml"
 fi
 
 mkdir -p "${OUTPUT_DIR}"
 
-# Step 1 runs analysis and captures JSON
-JSON_OUT="${OUTPUT_DIR}/analysis.json"
-echo "[omx-delegate] Running ai-slop-cleaner analysis on ${INPUT_FILE}..."
-"${BINARY}" --rules-dir "${RULES_DIR}" score "${INPUT_FILE}" --format json > "${JSON_OUT}"
-
-SCORE=$(python3 -c "import json; print(json.load(open('${JSON_OUT}')).get('overall_score', 0))")
-MATCHES=$(python3 -c "import json; print(len(json.load(open('${JSON_OUT}')).get('matches', [])))")
-WORDS=$(python3 -c "import json; print(len(json.load(open('${JSON_OUT}')).get('word_matches', [])))")
-
-echo "[omx-delegate] Score: ${SCORE}, Pattern matches: ${MATCHES}, Word matches: ${WORDS}"
-
-# Step 2 generates the OMX context document
+ANALYSIS_JSON="${OUTPUT_DIR}/analysis.json"
 CONTEXT_FILE="${OUTPUT_DIR}/omx-context.md"
-cat > "${CONTEXT_FILE}" <<EOF
-# OMX Context for AI-Slop-Cleaner Analysis
+INPUT_COPY="${OUTPUT_DIR}/input.txt"
 
-## Input File
-Path is ${INPUT_FILE}.
-Analysis JSON is ${JSON_OUT}.
+cp "${INPUT_FILE}" "${INPUT_COPY}"
 
-## Score Summary
-Overall score is ${SCORE}/100; higher means more AI slop detected.
-Pattern matches: ${MATCHES}.
-Word matches: ${WORDS}.
+echo "[omx-delegate] Running ai-slop-cleaner analyze on ${INPUT_FILE}..."
+"${BINARY}" --rules-dir "${RULES_DIR}" analyze "${INPUT_FILE}" > "${ANALYSIS_JSON}"
 
-## Ruleset
-The ruleset contains 70 banned structural patterns and 93 banned words or
-phrases. Rules directory: ${RULES_DIR}.
+MATCHES=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "${ANALYSIS_JSON}")
+TOP_MATCHES=$(python3 - "${ANALYSIS_JSON}" <<'PY'
+import json
+import sys
 
-## Task
-Improve the input text to reduce the AI slop score below 15.0.
-Focus on:
-1. Removing "A is not X, it is Y" redefinition patterns
-2. Replacing banned words with natural alternatives
-3. Breaking uniform sentence structures
-4. Removing markdown artifacts (bullets, tables, excessive headings)
-5. Making Korean text sound natural (avoid ~것입니다, ~할 수 있습니다)
+matches = json.load(open(sys.argv[1]))
+matches = sorted(matches, key=lambda match: match.get("weight", 0), reverse=True)[:8]
+for index, match in enumerate(matches, 1):
+    print(
+        "{index}. [{severity}] {name} line {line}: {text}".format(
+            index=index,
+            severity=match.get("severity", "unknown"),
+            name=match.get("pattern_name", "pattern"),
+            line=match.get("line_number", 0),
+            text=match.get("matched_text", ""),
+        )
+    )
+PY
+)
 
-## Deliverable
-A revised version of the input text with AI slop score < 15.0.
-EOF
+echo "[omx-delegate] Structural matches: ${MATCHES}"
+
+cat > "${CONTEXT_FILE}" <<EOF_CONTEXT
+# OMX Context for AI-Slop-Cleaner Rewrite
+
+## Input
+- Source file: ${INPUT_FILE}
+- Input copy: ${INPUT_COPY}
+- Structural analysis JSON: ${ANALYSIS_JSON}
+- Universal category catalog: ${PATTERNS_AGENT}
+
+## Analyze result
+Rust \`analyze\` returned ${MATCHES} raw structural matches. These matches are
+evidence only; they are not a score and not rewrite instructions.
+
+Top structural evidence:
+
+${TOP_MATCHES}
+
+## Required architecture
+Use full-text LLM inference:
+
+1. Read the complete input text.
+2. Read all raw structural matches from \`analysis.json\`.
+3. Read \`patterns-agent.md\` universal categories.
+4. Judge semantic slop by category intent in whatever language the text uses.
+5. Rewrite the complete text naturally while preserving meaning and grammar.
+6. Never regex-replace, never produce patches, and never cut words out of compound terms.
+
+## Deliverables
+- Complete rewritten text at ${OUTPUT_DIR}/cleaned.txt
+- Fresh post-rewrite analysis JSON at ${OUTPUT_DIR}/final-analysis.json
+- Brief note at ${OUTPUT_DIR}/final-report.md with match counts and remaining risks
+EOF_CONTEXT
 
 echo "[omx-delegate] Context written to ${CONTEXT_FILE}"
 
-# Step 3 checks whether omx is available and delegates
 if command -v omx &>/dev/null; then
     echo "[omx-delegate] Delegating to oh-my-codex..."
-    # Use npx to run latest codex since global install is outdated
-    npx @openai/codex@latest exec --sandbox danger-full-access --dangerously-bypass-approvals-and-sandbox "
-## \$team tasks
-1. Read the analysis JSON at ${JSON_OUT}
-2. Read the original input at ${INPUT_FILE}
-3. Identify the top 5 highest-weight pattern matches
-4. Plan specific rewrites for each match
+    omx exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "
+Read ${CONTEXT_FILE}. Rewrite ${INPUT_COPY} with full-text LLM inference using ${ANALYSIS_JSON} and ${PATTERNS_AGENT}. Do not use regex substitution or patch-style edits. Write the complete rewrite to ${OUTPUT_DIR}/cleaned.txt. Then run:
 
-## \$ralph tasks
-1. Create a ralph plan: iterative cleanup with 3 rounds max
-2. Round 1: Fix high-severity patterns (redefinition, banned words)
-3. Round 2: Fix medium-severity patterns (structure, flow)
-4. Round 3: Polish for natural human voice
-5. After each round, run: ${BINARY} --rules-dir ${RULES_DIR} score <file> --format json
-6. Stop when score < 15.0 or after 3 rounds
+${BINARY} --rules-dir ${RULES_DIR} analyze ${OUTPUT_DIR}/cleaned.txt > ${OUTPUT_DIR}/final-analysis.json
 
-## \$ultrawork tasks
-1. Implement the cleanup edits
-2. Run the Rust binary after each round to verify score improvement
-3. Write final cleaned text to ${OUTPUT_DIR}/cleaned.txt
-4. Write final score report to ${OUTPUT_DIR}/final-report.json
-5. Return the cleaned text and final score
+Finally write ${OUTPUT_DIR}/final-report.md with the before/after structural match counts and any remaining risks.
 "
 else
-    echo "[omx-delegate] omx not found in PATH. Skipping delegation."
-    echo "[omx-delegate] To delegate manually, run:"
-    echo "  omx exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox '...'"
+    echo "[omx-delegate] omx not found in PATH. Context is ready for manual delegation: ${CONTEXT_FILE}"
 fi
 
 echo "[omx-delegate] Done. Output in ${OUTPUT_DIR}/"

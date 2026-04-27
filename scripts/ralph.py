@@ -29,14 +29,16 @@ def find_binary():
     script_dir = Path(__file__).parent.resolve()
     project_root = script_dir.parent
     candidates = [
+        # Release install path
+        Path.home() / ".local" / "share" / "ai-slop-cleaner" / "bin" / "ai-slop-cleaner",
+        # Source build paths
         project_root / "rust" / "target" / "release" / "ai-slop-cleaner",
         project_root / "target" / "release" / "ai-slop-cleaner",
-        Path.home() / ".local" / "bin" / "ai-slop-cleaner",
     ]
     for c in candidates:
         if c.exists():
             return str(c)
-    # Try PATH
+    # Try PATH (may be wrapper script)
     result = subprocess.run(["which", "ai-slop-cleaner"], capture_output=True, text=True)
     if result.returncode == 0:
         return result.stdout.strip()
@@ -225,7 +227,14 @@ def main():
     if not binary:
         binary = build_binary(project_root)
 
-    rules_dir = args.rules_dir or (project_root / "rust" / "rules")
+    # Resolve rules directory
+    if args.rules_dir:
+        rules_dir = Path(args.rules_dir)
+    else:
+        # Try release install path first, then source path
+        release_rules = Path.home() / ".local" / "share" / "ai-slop-cleaner" / "rules"
+        source_rules = project_root / "rust" / "rules"
+        rules_dir = release_rules if release_rules.exists() else source_rules
 
     current_file = ralph_dir / "current.txt"
     current_file.write_text(input_file.read_text(encoding="utf-8"), encoding="utf-8")

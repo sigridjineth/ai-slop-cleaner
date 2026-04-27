@@ -69,6 +69,22 @@ enum Commands {
         /// Path to the agent-readable semantic pattern categories
         #[arg(long)]
         patterns_agent: Option<PathBuf>,
+
+        /// Run a final LLM quality assessment after rewriting
+        #[arg(long, default_value_t = true)]
+        assess: bool,
+
+        /// Skip the final LLM quality assessment
+        #[arg(long = "no-assess", action = clap::ArgAction::SetTrue, conflicts_with = "assess")]
+        no_assess: bool,
+    },
+    /// Compare original and rewritten files with an LLM quality assessment
+    Assess {
+        /// Path to the original text file
+        original: PathBuf,
+
+        /// Path to the rewritten text file
+        rewritten: PathBuf,
     },
     /// List all loaded rules
     Rules,
@@ -106,6 +122,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             target_matches,
             rules_dir,
             patterns_agent,
+            assess,
+            no_assess,
         } => {
             let rules_dir = rules_dir.unwrap_or(cli.rules_dir);
             let patterns_agent =
@@ -117,7 +135,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 max_rounds,
                 target_matches,
                 lang: cli.lang,
+                assess: assess && !no_assess,
             })?;
+        }
+        Commands::Assess {
+            original,
+            rewritten,
+        } => {
+            let original_text = fs::read_to_string(&original)?;
+            let rewritten_text = fs::read_to_string(&rewritten)?;
+            let report = deslop::assess_quality(&original_text, &rewritten_text)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            deslop::eprint_low_quality_warning(&report);
         }
         Commands::Rules => {
             let scorer = load_scorer(&cli.rules_dir)?;
@@ -241,14 +270,51 @@ mod tests {
                 target_matches,
                 rules_dir,
                 patterns_agent,
+                assess,
+                no_assess,
             } => {
                 assert_eq!(file, PathBuf::from("document.md"));
                 assert_eq!(max_rounds, 5);
                 assert_eq!(target_matches, 1);
                 assert_eq!(rules_dir, Some(PathBuf::from("custom-rules")));
                 assert_eq!(patterns_agent, Some(PathBuf::from("custom-patterns.md")));
+                assert!(assess);
+                assert!(!no_assess);
             }
             other => panic!("expected deslop command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_deslop_no_assess_flag() {
+        let cli = Cli::try_parse_from(["ai-slop-cleaner", "deslop", "document.md", "--no-assess"])
+            .expect("deslop --no-assess should parse");
+
+        match cli.command {
+            Commands::Deslop {
+                assess, no_assess, ..
+            } => {
+                assert!(assess);
+                assert!(no_assess);
+            }
+            other => panic!("expected deslop command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_assess_subcommand() {
+        let cli = Cli::try_parse_from(["ai-slop-cleaner", "assess", "original.md", "rewritten.md"])
+            .expect("assess subcommand should parse");
+
+        match cli.command {
+            Commands::Assess {
+                original,
+                rewritten,
+            } => {
+                assert_eq!(original, PathBuf::from("original.md"));
+                assert_eq!(rewritten, PathBuf::from("rewritten.md"));
+            }
+            other => panic!("expected assess command, got {other:?}"),
         }
     }
 }

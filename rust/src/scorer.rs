@@ -47,78 +47,10 @@ pub struct Scorer {
     ruleset: Ruleset,
 }
 
-/// Detect language from text content.
-/// Returns "ko" if >= 5% of characters are Korean (Hangul),
-/// "ja" if >= 5% are Japanese (Hiragana/Katakana),
-/// "zh" if >= 5% are CJK Unified Ideographs (and not Japanese),
-/// "es" if Spanish markers detected,
-/// "en" otherwise.
-/// For scoring purposes, non-en/ko languages map to "all" to get universal patterns.
-fn detect_language(text: &str) -> &'static str {
-    let total_chars = text.chars().filter(|c| !c.is_whitespace()).count();
-    if total_chars == 0 {
-        return "en";
-    }
-    let mut korean_chars = 0usize;
-    let mut japanese_chars = 0usize;
-    let mut cjk_chars = 0usize;
-    for c in text.chars() {
-        let cp = c as u32;
-        if (0xAC00..=0xD7A3).contains(&cp)
-            || (0x1100..=0x11FF).contains(&cp)
-            || (0x3130..=0x318F).contains(&cp)
-        {
-            korean_chars += 1;
-        }
-        if (0x3040..=0x309F).contains(&cp) || (0x30A0..=0x30FF).contains(&cp) {
-            japanese_chars += 1;
-        }
-        if (0x4E00..=0x9FFF).contains(&cp) {
-            cjk_chars += 1;
-        }
-    }
-    let ko_ratio = korean_chars as f64 / total_chars as f64;
-    let ja_ratio = japanese_chars as f64 / total_chars as f64;
-    let cjk_ratio = cjk_chars as f64 / total_chars as f64;
-    if ko_ratio >= 0.05 {
-        "ko"
-    } else if ja_ratio >= 0.03 {
-        "ja"
-    } else if cjk_ratio >= 0.05 {
-        "zh"
-    } else {
-        "en"
-    }
-}
-
-/// Check if a pattern should be included given the resolved language.
-/// Uses lang_scope field: universal = always, english = en only, korean = ko only.
-fn should_include_pattern(lang_scope: &str, lang: &str) -> bool {
-    match lang {
-        "all" => true,
-        _ => match lang_scope {
-            "universal" => true,
-            "english" => lang == "en",
-            "korean" => lang == "ko",
-            _ => true, // unknown scope = include by default
-        },
-    }
-}
-
-/// Check if a banned word should be included given the resolved language.
-fn should_include_word(word: &str, lang: &str) -> bool {
-    match lang {
-        "en" => {
-            // Skip Korean banned words (contain Hangul)
-            !word.chars().any(|c| {
-                let cp = c as u32;
-                (0xAC00..=0xD7A3).contains(&cp)
-            })
-        }
-        "ko" => true, // Korean text gets all word checks
-        _ => true,
-    }
-}
+/// The Rust binary only applies universal (language-agnostic) patterns.
+/// Language-specific pattern evaluation is delegated to an LLM agent
+/// via patterns-agent.md. The --lang flag is accepted for CLI compatibility
+/// but has no effect — all loaded patterns are universal scope.
 
 impl Scorer {
     pub fn new(ruleset: Ruleset) -> Self {
@@ -129,21 +61,12 @@ impl Scorer {
         &self.ruleset
     }
 
-    pub fn score(&self, text: &str, lang: &str) -> ScoreResult {
-        let resolved_lang = match lang {
-            "auto" => detect_language(text),
-            "en" => "en",
-            "ko" => "ko",
-            "ja" | "zh" | "es" => "all", // non-en/ko languages get all universal patterns
-            _ => "all",
-        };
-
+    pub fn score(&self, text: &str, _lang: &str) -> ScoreResult {
         let mut matches = Vec::new();
         let mut word_matches = Vec::new();
         let lines: Vec<&str> = text.lines().collect();
 
-        // Score structural patterns (filtered by language)
-        // Build a map of byte offset -> (line_number, line_start_byte) for full-text matching
+        // Build byte-offset to line-number lookup for multi-line pattern matching
         let line_starts: Vec<usize> = {
             let mut starts = vec![0usize];
             for (i, b) in text.bytes().enumerate() {
@@ -156,23 +79,18 @@ impl Scorer {
         let byte_to_line = |byte_offset: usize| -> usize {
             match line_starts.binary_search(&byte_offset) {
                 Ok(idx) => idx + 1,
-                Err(idx) => idx, // idx is the line (1-indexed since starts[0]=0 means line 1)
+                Err(idx) => idx,
             }
         };
 
+        // Score structural patterns (all universal — no language filtering needed)
         for pattern in &self.ruleset.patterns {
-            if !should_include_pattern(&pattern.lang_scope, resolved_lang) {
-                continue;
-            }
-            // Run multi-line patterns (like bullet_block) against full text
-            // and single-line patterns against individual lines
             let is_multiline = pattern.regex.as_str().contains("(?m)")
                 || pattern.regex.as_str().contains("\n");
             if is_multiline {
                 for mat in pattern.regex.find_iter(text) {
                     let line_num = byte_to_line(mat.start());
                     let matched = mat.as_str();
-                    // For multi-line matches, show first line only in matched_text
                     let first_line = matched.lines().next().unwrap_or(matched);
                     matches.push(MatchResult {
                         pattern_name: pattern.name.clone(),
@@ -203,11 +121,8 @@ impl Scorer {
             }
         }
 
-        // Score banned words (filtered by language)
+        // Score banned words (all words checked — no language filtering)
         for word_entry in &self.ruleset.words {
-            if !should_include_word(&word_entry.word, resolved_lang) {
-                continue;
-            }
             let word_regex = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(&word_entry.word)))
                 .unwrap_or_else(|_| Regex::new(&regex::escape(&word_entry.word)).unwrap());
 
@@ -244,7 +159,7 @@ impl Scorer {
                 medium_severity_count: medium_count,
                 low_severity_count: low_count,
             },
-            detected_lang: resolved_lang.to_string(),
+            detected_lang: "universal".to_string(),
         }
     }
 }
@@ -358,27 +273,22 @@ mod tests {
     }
 
     #[test]
-    fn test_lang_auto_english() {
-        let result_lang =
-            super::detect_language("This is a purely English document with no Korean.");
-        assert_eq!(result_lang, "en");
-    }
+    fn test_any_language_gets_universal_patterns() {
+        // All patterns are universal — any text in any language should be scored
+        // without language-specific filtering
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
+        let scorer = Scorer::new(ruleset);
 
-    #[test]
-    fn test_lang_auto_korean() {
-        let result_lang = super::detect_language("이것은 한국어 문서입니다.");
-        assert_eq!(result_lang, "ko");
-    }
+        // Korean text with emoji
+        let result = scorer.score("한국어 텍스트 🚀 좋습니다", "auto");
+        assert!(result.matches.iter().any(|m| m.pattern_name == "emoji_decoration"));
 
-    #[test]
-    fn test_lang_auto_japanese() {
-        let result_lang = super::detect_language("これは日本語のテストドキュメントです。");
-        assert_eq!(result_lang, "ja");
-    }
+        // Japanese text with em dash
+        let result = scorer.score("日本語のテスト — テストで���", "auto");
+        assert!(result.matches.iter().any(|m| m.pattern_name == "em_dash"));
 
-    #[test]
-    fn test_lang_auto_chinese() {
-        let result_lang = super::detect_language("这是一个中文测试文档。");
-        assert_eq!(result_lang, "zh");
+        // Chinese text with plus conjunction
+        let result = scorer.score("支持中文 + 英文检���", "auto");
+        assert!(result.matches.iter().any(|m| m.pattern_name == "plus_conjunction"));
     }
 }

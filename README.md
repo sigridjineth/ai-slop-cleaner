@@ -1,82 +1,140 @@
 # AI Slop Cleaner
 
-AI Slop Cleaner is an agent-driven Python package and FastMCP server for scoring
-AI-slop signals in prose. The design mirrors Ouroboros — a Python package with
-`pyproject.toml`, a FastMCP server, MCP tools, a Claude plugin config, and a CLI
-entry point.
+Detect AI-generated prose patterns ("AI slop") in any language. A Rust CLI handles fast regex scoring for universal structural signals (emoji, bold abuse, em dashes, plus-sign conjunctions). Language-specific and semantic patterns are defined in plain markdown and evaluated by an LLM agent — no hardcoded language lists.
 
-## What it provides
+## Dual-mode architecture
 
-- **MCP server:** `ai-slop-cleaner mcp serve`
-- **MCP tools:** `ai_slop_score`, `ai_slop_analyze`, `ai_slop_check`
-- **Agent-driven detector:** tries `claude --print`, then `codex exec`
-- **Regex fallback:** deterministic detection when no AI agent is available
-- **Score aggregation:** five weighted components on a 0-100 scale
-- **Code-smell detector:** Python/JS/Rust triage for duplicate functions, dead
-  code, needless abstraction, boundary violations, and missing tests
-- **Ralph mode:** iterative rule-based cleanup that rewrites a file until it
-  reaches a target score or exhausts a bounded iteration budget
-
-## Install for development
-
-```bash
-pip install -e '.[dev]'
+```
+┌─────────────────────────────────────────────┐
+│  Mode 1: Regex (Rust binary)                │
+│  Universal structural patterns only         │
+│  banned-patterns.md → 6 patterns            │
+│  banned-words.md → 93 word/phrase entries    │
+│  Fast, deterministic, 0–100 score           │
+└─────────────────────────────────────────────┘
+                    ↕
+┌─────────────────────────────────────────────┐
+│  Mode 2: Agent (LLM reads patterns-agent.md)│
+│  70 patterns in plain prose, any language    │
+│  Judges intent, not string match            │
+│  5-component weighted score (BWD/SPV/RHY/   │
+│  META/MD)                                   │
+└─────────────────────────────────────────────┘
 ```
 
-The package depends on `mcp[cli]` and uses FastMCP.
+**Mode 1** catches language-agnostic formatting signals that regex handles well: bullet blocks, emoji decoration, colon headings, bold overuse, em dashes, and `+` conjunctions.
 
-## Quick start
+**Mode 2** covers everything else — translationese, hedging, hype vocabulary, closing formulas, rhythm monotony — across English, Korean, Japanese, Chinese, or any language an LLM can read. The pattern catalog (`rules/patterns-agent.md`, 718 lines) describes each signal in plain prose with severity, weight, examples, and multilingual notes.
 
-```bash
-# Start the MCP server over stdio
-ai-slop-cleaner mcp serve
-
-# Score a file; prints one integer by default
-ai-slop-cleaner score draft.md
-
-# Full JSON analysis
-ai-slop-cleaner analyze draft.md
-
-# Code cleanup triage for Python/JS/Rust
-ai-slop-cleaner code-smells src tests --tests tests
-
-# Iteratively clean prose; overwrites input unless --output is supplied
-ai-slop-cleaner ralph draft.md --threshold 25 --max-iterations 5 --output clean.md
-
-# Force deterministic fallback instead of spawning agents
-AI_SLOP_CLEANER_DISABLE_AGENTS=1 ai-slop-cleaner analyze draft.md
-```
-
-## Rust single-binary build
-
-The Rust port lives in `rust/` and packages the scorer, analyzer, Ralph loop,
-code-smell detector, and stdio MCP server into one binary.
+## Install
 
 ```bash
 cd rust
-cargo test
 cargo build --release
-
-# Score a file from the Rust binary
-./target/release/ai-slop-cleaner-rs score ../README.md
-
-# Full analysis and cleanup helpers
-./target/release/ai-slop-cleaner-rs analyze ../README.md
-./target/release/ai-slop-cleaner-rs code-smells ../src ../tests --tests ../tests
-./target/release/ai-slop-cleaner-rs ralph ../draft.md --threshold 25 --output ../clean.md
-
-# MCP over stdio
-./target/release/ai-slop-cleaner-rs mcp serve
+# binary: rust/target/release/ai-slop-cleaner
 ```
 
-The Rust implementation uses the same five component keys (`BWD`, `SPV`,
-`RHY`, `META`, `MD`), includes the English banned-word catalogue and Korean
-pattern coverage, reports H.U.M.A.N. Framework diagnostics, and mirrors the
-Python code-smell/Ralph workflows for environments that prefer a single binary.
+## Usage
 
-## MCP configuration
+Global flags (`-r`, `-l`) go before the subcommand.
 
-`.mcp.json` and `.claude-plugin/.mcp.json` both register the server through uvx:
+```bash
+# Score a file (auto-detects language for word filtering)
+ai-slop-cleaner score document.md
+
+# Force English word filtering
+ai-slop-cleaner -l en score document.md
+
+# JSON output
+ai-slop-cleaner score document.md --format json
+
+# Markdown report
+ai-slop-cleaner score document.md --format markdown
+
+# Score from stdin
+cat draft.md | ai-slop-cleaner stdin
+
+# Custom rules directory
+ai-slop-cleaner -r /path/to/rules score document.md
+
+# List loaded rules
+ai-slop-cleaner rules
+```
+
+## Score interpretation
+
+| Range | Meaning | Action |
+|-------|---------|--------|
+| 0–15 | Clean | Ship it |
+| 15–30 | Light signals | Spot-check flagged lines |
+| 30–60 | Noticeable slop | Revise flagged sections |
+| 60–100 | Heavy slop | Rewrite or run agent cleanup |
+
+## Rules
+
+All rules live in `rust/rules/` as markdown files. The binary reloads them on every run — no recompilation needed.
+
+| File | Purpose |
+|------|---------|
+| `banned-patterns.md` | 6 universal regex patterns (bullet block, emoji, colon heading, bold, em dash, plus conjunction) |
+| `banned-words.md` | 93 banned words and phrases with replacements (English buzzwords, English phrases, Korean buzzwords) |
+| `patterns-agent.md` | 70 patterns in plain prose for LLM agent evaluation — covers 10 categories across any language |
+
+### Pattern categories (agent mode)
+
+| Category | Signals |
+|----------|---------|
+| A | Translationese (에 대해, 를 통해, based on, by-passive) |
+| B | Untranslated terms, parenthesized English, long quotes |
+| C | Structural: mechanical enumeration, bullet blocks, emoji, colon headings |
+| D | Cliché: conclusion phrases, importance inflation, hype vocabulary |
+| E | Rhythm: uniform sentence length, repeated endings, uniform paragraphs |
+| F | Modifier abuse: degree adverbs, double modifiers, suffix chains |
+| G | Hedging: triple hedges, possibility stacking |
+| H | Connectors: sentence-initial transitions, meta-entries |
+| I | Korean-specific: 것이다 endings, dependent noun crutches, need-to formulas |
+| J | Formatting: bold overuse, quote emphasis, em dashes, parenthetical asides |
+
+### Adding rules
+
+For universal regex patterns, add a row to `banned-patterns.md`:
+
+```markdown
+| my_pattern | universal | medium | 1.5 | `regex here` | Description. |
+```
+
+For language-specific or semantic patterns, add a `###` section to `patterns-agent.md`:
+
+```markdown
+### my_pattern
+- **Severity:** medium
+- **Lang Scope:** english
+- **Weight:** 1.5
+- **Description:** What the pattern detects and why it matters.
+- **Examples:**
+  - "Example sentence that matches."
+- **Multilingual note:** How this manifests in other languages.
+```
+
+## Agent mode
+
+The agent prompt template (`references/agent-prompt-template.md`) embeds the pattern catalog and a JSON response schema with five scoring components:
+
+```
+Score = round(100 × (0.25×BWD + 0.25×SPV + 0.20×RHY + 0.15×META + 0.15×MD))
+```
+
+| Component | Weight | Meaning |
+|-----------|-------:|---------|
+| BWD | 25% | Banned word/phrase density |
+| SPV | 25% | Structural pattern violations |
+| RHY | 20% | Rhythm monotony |
+| META | 15% | Meta commentary density |
+| MD | 15% | Markdown overuse |
+
+## MCP server
+
+The `.mcp.json` registers a stdio MCP server for Claude/Codex integration:
 
 ```json
 {
@@ -89,83 +147,36 @@ Python code-smell/Ralph workflows for environments that prefer a single binary.
 }
 ```
 
-## Architecture
+## OMX delegation
 
-```text
-src/ai_slop_cleaner/
-├── __init__.py
-├── cli.py
-├── mcp/
-│   ├── __init__.py
-│   ├── server.py
-│   └── tools.py
-└── core/
-    ├── __init__.py
-    ├── detector.py
-    ├── scorer.py
-    ├── fallback.py
-    ├── code_smells.py
-    ├── ralph.py
-    ├── banned_words.py
-    └── banned_patterns.py
+`scripts/omx-delegate.sh` runs iterative cleanup: score → generate context → delegate to `$team`/`$ralph`/`$ultrawork` in a single `omx exec` call. The loop stops when the score drops below 15 or after 3 rounds.
+
+## Project structure
+
 ```
-
-`core/detector.py` builds an agent prompt from reference files and calls runtimes
-in this order:
-
-1. `claude --print`
-2. `codex exec`
-3. regex fallback
-
-The fallback ports the essential behavior from the old Go CLI: it skips fenced
-code blocks, strips inline code, honors `.slopignore`, loads the banned-word and
-banned-pattern references, and computes the same five component keys.
-
-`core/code_smells.py` embeds the oh-my-codex code cleanup discipline: lock
-behavior with regression tests first, create a cleanup plan before code,
-categorize findings, run one smell pass at a time, and finish with evidence.
-The detector reports Duplication, Dead code, Needless abstraction, Boundary
-violations, and Missing tests for Python, JavaScript/TypeScript, and Rust.
-
-`core/ralph.py` runs the iterative cleanup loop. Each iteration analyzes the
-text, prints the score and top findings, then applies safe rule-based fixes:
-banned-word replacement, sentence-structure variation, markdown decoration
-reduction, and translationese simplification.
-
-## AI Slop Score
-
-```text
-Score = round(100 * (0.25*BWD + 0.25*SPV + 0.20*RHY + 0.15*META + 0.15*MD))
+ai-slop-cleaner/
+├── README.md
+├── rust/
+│   ├── Cargo.toml
+│   ├── src/
+│   │   ├── main.rs          # CLI (score, stdin, rules)
+│   │   ├── scorer.rs         # Regex matching, language filtering, scoring
+│   │   └── pattern_loader.rs # Markdown table parser (backtick-aware)
+│   └── rules/
+│       ├── banned-patterns.md   # Universal regex patterns
+│       ├── banned-words.md      # Banned words with replacements
+│       └── patterns-agent.md    # Agent-readable pattern catalog (70 patterns)
+├── references/
+│   ├── agent-prompt-template.md # Prompt template for LLM subagents
+│   ├── agent-response-schema.json
+│   ├── banned-patterns.md       # Reference copy
+│   ├── banned-words.md          # Reference copy
+│   └── ...
+├── scripts/
+│   └── omx-delegate.sh          # OMX iterative cleanup
+├── .mcp.json                    # MCP server config
+└── SKILL.md                     # Hermes skill definition
 ```
-
-| Component | Weight | Meaning |
-| --- | ---: | --- |
-| `BWD` | 25% | Banned word and phrase density |
-| `SPV` | 25% | Structural pattern violations |
-| `RHY` | 20% | Rhythm monotony |
-| `META` | 15% | Meta commentary density |
-| `MD` | 15% | Markdown overuse |
-
-Use the score to decide how much editing a draft needs. A low score means the
-text already reads naturally. A high score points to sections worth rewriting.
-
-## References
-
-- `references/banned-words.md` — canonical word and phrase taxonomy.
-- `references/banned-patterns.md` — structural anti-pattern taxonomy.
-- `references/agent-driven-spec.md` — v2 architecture spec.
-- `references/agent-prompt-template.md` — prompt sent to subagents.
-- `references/agent-response-schema.json` — expected JSON response schema.
-- `rust/` — Rust single-binary implementation with CLI and MCP stdio server.
-
-## Tests
-
-```bash
-pip install -e '.[dev]'
-python -m pytest tests/ -v
-```
-
-If the `python` executable is not present on your system, use `python3`.
 
 ## License
 

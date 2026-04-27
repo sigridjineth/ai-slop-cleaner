@@ -716,3 +716,17 @@ These words should be flagged when used in contexts where simpler alternatives w
 - "보통 ~에는", "일반적으로 ~가 있습니다"
 - "~와 같은 모습입니다", "~처럼 생각할 수 있습니다"
 - "~를 상상해 볼 수 있습니다", "~를 그려볼 수 있습니다"
+
+---
+
+### plus_conjunction
+- **Severity:** medium
+- **Lang Scope:** universal
+- **Weight:** 1.5
+- **Description:** Using a plus sign (+) as a conjunction between terms instead of "and" or a comma. Common in Codex and AI-generated documentation. Reads as a lazy enumeration shorthand rather than natural prose.
+- **Examples:**
+  - "English + Korean"
+  - "speed + reliability"
+  - "React + TypeScript + Tailwind"
+  - "supports Python + JavaScript"
+- **Multilingual note:** This pattern is language-agnostic — the + conjunction appears in AI output regardless of the surrounding language. Acceptable in mathematical expressions, code, and version strings (e.g. "C++", "3+2").

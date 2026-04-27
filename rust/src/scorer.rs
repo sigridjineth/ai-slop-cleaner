@@ -232,35 +232,56 @@ mod tests {
     }
 
     #[test]
-    fn test_korean_patterns() {
-        let ruleset = Ruleset::load_from_dir("rules").unwrap_or_else(|_| test_ruleset());
-        let scorer = Scorer::new(ruleset);
-
-        let result = scorer.score("이것은 테스트가 아니라 예시입니다.", "all");
-        let has_korean_redefinition = result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name.contains("a_not_b_korean"));
-        assert!(
-            has_korean_redefinition,
-            "Should detect Korean redefinition pattern"
-        );
+    fn test_universal_patterns_only() {
+        // After removing language-specific regex patterns, only universal patterns remain.
+        // Language-specific detection is delegated to LLM agents via patterns-agent.md.
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
+        for pattern in &ruleset.patterns {
+            assert_eq!(
+                pattern.lang_scope, "universal",
+                "Pattern '{}' should be universal (got '{}'). Language-specific patterns belong in patterns-agent.md.",
+                pattern.name, pattern.lang_scope
+            );
+        }
     }
 
     #[test]
-    fn test_english_redefinition() {
-        let ruleset = Ruleset::load_from_dir("rules").unwrap_or_else(|_| test_ruleset());
+    fn test_plus_conjunction() {
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
-        let result = scorer.score("This is not just a test, it is a revolution.", "all");
-        let has_redefinition = result
+        let result = scorer.score("Supports English + Korean detection.", "all");
+        let has_plus = result
             .matches
             .iter()
-            .any(|m| m.pattern_name.contains("redefinition") || m.pattern_name.contains("a_not_b"));
-        assert!(
-            has_redefinition,
-            "Should detect English redefinition pattern"
-        );
+            .any(|m| m.pattern_name == "plus_conjunction");
+        assert!(has_plus, "Should detect plus conjunction pattern");
+    }
+
+    #[test]
+    fn test_emoji_detection() {
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
+        let scorer = Scorer::new(ruleset);
+
+        let result = scorer.score("This is great! 🚀 Let's ship it! ✨", "all");
+        let has_emoji = result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name == "emoji_decoration");
+        assert!(has_emoji, "Should detect emoji decoration");
+    }
+
+    #[test]
+    fn test_em_dash_detection() {
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
+        let scorer = Scorer::new(ruleset);
+
+        let result = scorer.score("The tool — which is fast — handles everything.", "all");
+        let has_em_dash = result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name == "em_dash");
+        assert!(has_em_dash, "Should detect em dash decoration");
     }
 
     #[test]
@@ -275,39 +296,6 @@ mod tests {
                 pattern.name
             );
         }
-    }
-
-    #[test]
-    fn test_unicode_korean_ranges() {
-        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
-        let scorer = Scorer::new(ruleset);
-
-        let korean_text = "이 문제에 있어서 해결책을 찾아야 합니다. 이것을 통해 알 수 있습니다.";
-        let result = scorer.score(korean_text, "all");
-
-        let has_korean_match = result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name.starts_with("ko_"));
-        assert!(has_korean_match, "Should detect Korean AI slop patterns");
-    }
-
-    #[test]
-    fn test_lang_filter_en_skips_korean() {
-        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
-        let scorer = Scorer::new(ruleset);
-
-        let result = scorer.score("This is a normal English README file.", "en");
-        // With lang=en, korean-scoped patterns should be skipped,
-        // but universal patterns (bold, em dash, bullet block, etc.) should still apply
-        let has_korean_only = result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name.starts_with("ko_A") || m.pattern_name.starts_with("ko_D"));
-        assert!(
-            !has_korean_only,
-            "lang=en should not produce Korean-only pattern matches"
-        );
     }
 
     #[test]

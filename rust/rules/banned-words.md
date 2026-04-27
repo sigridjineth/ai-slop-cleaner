@@ -11,7 +11,6 @@ Loaded by the Rust binary at runtime from `rules/banned-words.md`.
 | delve | explore | 1.0 |
 | elucidate | explain | 1.0 |
 | underscore | stress | 1.0 |
-| harness | use | 1.0 |
 | leverage | use | 1.0 |
 | bolster | strengthen | 1.0 |
 | foster | encourage | 1.0 |

@@ -13,5 +13,5 @@ evaluated by an LLM agent, not regex.
 | emoji_decoration | universal | high | 2.0 | `[✅🚀💡⚠📊✨🔥👉👍🎯]` | Emoji decoration in prose. |
 | colon_heading | universal | high | 2.0 | `(?m)^\s{0,3}#{1,6}\s*(?:\*\*)?[^:\n]{1,80}(?:\*\*)?\s*:\s+\S.*$` | Colon subtitle heading formula (## Title: Subtitle). |
 | bold_emphasis | universal | medium | 0.5 | `(?:\*\*|__)[^*_\n]{1,80}(?:\*\*|__)` | Bold emphasis decoration. |
-| em_dash | universal | low | 0.5 | `—` | Em dash decoration. |
+| em_dash | universal | high | 2.0 | `—` | Em dash decoration. |
 | plus_conjunction | universal | medium | 1.5 | `(?u)[\p{L}][\p{L}\p{M}\p{N}_-]*\s*\+\s*[\p{L}][\p{L}\p{M}\p{N}_-]*` | Plus-sign conjunction between adjacent terms in any language (e.g. "English + Korean", "中文 + 英文"). Includes combining-mark scripts such as Devanagari without swallowing surrounding prose or arithmetic expressions. Common in Codex/AI output. |

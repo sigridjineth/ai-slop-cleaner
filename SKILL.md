@@ -1,4 +1,5 @@
 ---
+name: ai-slop-cleaner
 title: AI Slop Cleaner
 description: Score prose for AI-slop signals using a Rust CLI (regex fast-path) plus agent-readable pattern definitions for multilingual LLM judgment.
 category: writing
@@ -94,13 +95,33 @@ cd ~/.hermes/skills/ai-slop-cleaner/rust
 ./target/release/ai-slop-cleaner --rules-dir rules/ score ../../README.md --format json
 ```
 
-Iterative cleanup (ralph-style, even without OMX):
-1. Fix `plus_conjunction` matches first — replace "A + B" with "A and B" or "A alongside B".
-2. Fix `bullet_block` — convert 4+ consecutive bullets into a table or prose.
-3. Remove unnecessary `bold_emphasis` inside table cells where structure already signals hierarchy.
-4. Keep em dashes if they are part of the target style (e.g., Ouroboros-style docs).
+### Scoring anatomy (what actually drives the number)
 
-Target for technical docs: **≤ 30** (ouroboros README itself scores ~41, so anything below that is already cleaner than the reference). Target for pure prose: **< 15**.
+Understanding the weight of each pattern is the fastest way to lower a score:
+
+| Pattern | Weight each | Typical README hit | Point impact |
+|---------|------------|--------------------|--------------|
+| `em_dash` | 0.5 | 10–15 dashes | 5.0–7.5 |
+| `bold_emphasis` | 0.5 | 8–12 bold spans | 4.0–6.0 |
+| `colon_heading` | 2.0 | 1–2 headings | 2.0–4.0 |
+| Banned words | 1.0 | 2–5 words | 2.0–5.0 |
+| `bullet_block` | 1.0 | 1 block | 1.0 |
+
+**Em dashes are the single biggest contributor** in most markdown READMEs. If you need a score < 5, remove every `—` and replace with periods, commas, semicolons, or parentheses. Bold inside table cells and headings is also counted; strip `**` from sentences where structure already provides hierarchy.
+
+### Checklist for score < 5
+
+1. **Zero em dashes** — replace all `—` with `.`, `;`, `,`, or `()`.
+2. **Minimal bold** — remove `**` from sentences; keep only in nav pills or badges if necessary.
+3. **No colon headings** — avoid `### Title: Subtitle`; use `### Title. Subtitle` or `### Title / Subtitle`.
+4. **Avoid banned words** — check `banned-words.md` for words like *harness*, *leverage*, *delve*; use plain alternatives.
+5. **Keep tables and code blocks** — these do not trigger structural patterns unless they contain the above.
+
+### Style trade-off note
+
+The ouroboros reference README (Q00/ouroboros) scores ~41/100 because em dashes and bold emphasis are intentional stylistic choices. If a user asks to "follow ouroboros style" **and** "score < 5", you must choose: ouroboros style requires em dashes and bold, which guarantees a score > 15. Prioritize the numerical target over stylistic homage when both are requested.
+
+Target for technical docs: **≤ 30**. Target for pure prose: **< 15**. Target when the user explicitly demands a low-slop README: **< 5** (requires the checklist above).
 
 ## One-Command Installer (Rust projects)
 
@@ -143,7 +164,11 @@ chmod +x "${BIN_DIR}/ai-slop-cleaner"
 
 Usage for end users: `curl -fsSL .../install.sh | bash`
 
-## OMX Delegation
+## Iterative Cleanup (Ralph)
+
+Two options: OMX delegation or standalone harness.
+
+### OMX Delegation
 
 `scripts/omx-delegate.sh` orchestrates iterative cleanup:
 
@@ -152,6 +177,25 @@ Usage for end users: `curl -fsSL .../install.sh | bash`
 ```
 
 It runs the Rust binary, generates context for Codex, and delegates to `$team` / `$ralph` / `$ultrawork` roles in a single `omx exec` call. The loop stops when the score drops below 15 or after 3 rounds.
+
+### Standalone Ralph Harness (no OMX)
+
+`scripts/ralph.py` performs the same evolutionary loop without OMX. It uses only Python 3 + `urllib` (no external packages).
+
+```bash
+python3 scripts/ralph.py <input-file> [--max-rounds 3] [--target-score 15]
+```
+
+Behavior:
+- Detects `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `AICHAT_MODEL` and calls the corresponding LLM backend automatically.
+- If no API key is found, it writes prompts to `.ralph/round-N-prompt.md` and waits for you to paste the LLM response into `.ralph/round-N-response.md` before continuing.
+- After each round it re-runs the Rust binary and stops when the target score is reached or max rounds are exhausted.
+
+To make all agent patterns language-agnostic:
+
+```bash
+sed -i 's/- \*\*Lang Scope:\*\* .*/- **Lang Scope:** universal/' rust/rules/patterns-agent.md
+```
 
 ## Pitfalls
 

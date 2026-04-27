@@ -54,72 +54,59 @@ def build_binary(project_root):
     return str(rust_dir / "target" / "release" / "ai-slop-cleaner")
 
 
-def run_score(binary, rules_dir, input_file):
-    """Run ai-slop-cleaner and return parsed JSON."""
-    cmd = [binary, "--rules-dir", str(rules_dir), "score", str(input_file), "--format", "json"]
+def run_analyze(binary, rules_dir, input_file):
+    """Run ai-slop-cleaner analyze and return raw structural matches."""
+    cmd = [binary, "--rules-dir", str(rules_dir), "analyze", str(input_file)]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"[ralph] scorer failed: {result.stderr}")
+        print(f"[ralph] analyze failed: {result.stderr}")
         sys.exit(1)
-    # The binary may print the JSON report to stdout along with other cargo output;
-    # find the first line that starts with '{'
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if line.startswith("{"):
-            return json.loads(line)
-    # Fallback: try parsing entire stdout
+    # Parse JSON array from stdout
     return json.loads(result.stdout)
 
 
-def extract_top_violations(data, n=5):
-    """Return the top-N highest-weight matches."""
-    matches = data.get("matches", [])
-    words = data.get("word_matches", [])
+def extract_top_violations(matches, n=5):
+    """Return the top-N highest-weight structural matches."""
     all_violations = []
     for m in matches:
         all_violations.append({
-            "type": m.get("pattern", "pattern"),
-            "line": m.get("line", 0),
+            "type": m.get("pattern_name", "pattern"),
+            "line": m.get("line_number", 0),
             "severity": m.get("severity", "unknown"),
             "weight": m.get("weight", 0),
-            "description": m.get("description", ""),
-        })
-    for w in words:
-        all_violations.append({
-            "type": f"banned_word({w.get('word','')})",
-            "line": w.get("line", 0),
-            "severity": w.get("severity", "unknown"),
-            "weight": w.get("weight", 0),
-            "description": f"Replace with: {w.get('replacement','')}",
+            "matched_text": m.get("matched_text", ""),
         })
     all_violations.sort(key=lambda x: x["weight"], reverse=True)
     return all_violations[:n]
 
 
-def make_prompt(input_text, violations, round_num, score):
-    """Generate the cleanup prompt for the LLM."""
+def make_prompt(input_text, structural_matches, violations, round_num):
+    """Generate the cleanup prompt for the LLM holistic judge."""
     violation_text = "\n".join(
-        f"{i+1}. [{v['severity']}] {v['type']} (weight {v['weight']}) at line {v['line']}: {v['description']}"
+        f"{i+1}. [{v['severity']}] {v['type']} (weight {v['weight']}) at line {v['line']}: {v['matched_text']}"
         for i, v in enumerate(violations)
     )
-    prompt = f"""You are Ralph, an editor that removes AI-generated slop from prose.
+    prompt = f"""You are Ralph, an expert editor and holistic judge of AI-generated slop.
 
-## Current State
-Round: {round_num}
-Current ai-slop-cleaner score: {score}/100 (lower is better; target < 15).
+Your job is to read the FULL TEXT plus STRUCTURAL MATCHES from a dumb pattern matcher, then:
+1. Identify BOTH structural slop (bold, em dashes, bullets, etc.) AND semantic slop (overuse of "So", "That makes it...", repetitive explanations, conversational filler, excessive structuring)
+2. Rewrite the text to remove ALL slop while preserving the original meaning.
+3. Make it sound like a human wrote it — direct, concise, no fluff.
 
-## Text to Edit
+## Round {round_num}
+
+## Full Text
 ```
 {input_text}
 ```
 
-## Top Violations to Fix
+## Structural Matches from Dumb Pattern Matcher ({len(structural_matches)} found)
 {violation_text}
 
 ## Instructions
-1. Fix the top violations while preserving the original meaning.
+1. Consider structural matches AND your own semantic judgment together.
 2. Remove markdown artifacts (excessive bullets, tables, bold, em dashes) only if they feel mechanical.
-3. Make the text sound like a human wrote it.
+3. Fix semantic slop: rewrite "So..." openings, "That makes it..." transitions, repetitive explanations.
 4. Output ONLY the rewritten text. No commentary, no markdown code fences around the whole output.
 """
     return prompt
@@ -220,7 +207,7 @@ def main():
     parser = argparse.ArgumentParser(description="Ralph standalone cleanup harness")
     parser.add_argument("input_file", help="File to clean up")
     parser.add_argument("--max-rounds", type=int, default=3, help="Maximum iterations")
-    parser.add_argument("--target-score", type=float, default=15.0, help="Stop when score below this")
+    parser.add_argument("--target-matches", type=int, default=0, help="Stop when structural matches at or below this")
     parser.add_argument("--rules-dir", default=None, help="Path to rules directory")
     args = parser.parse_args()
 
@@ -245,26 +232,24 @@ def main():
 
     print(f"[ralph] Binary: {binary}")
     print(f"[ralph] Rules:  {rules_dir}")
-    print(f"[ralph] Target: < {args.target_score} | Max rounds: {args.max_rounds}")
+    print(f"[ralph] Target: <= {args.target_matches} structural matches | Max rounds: {args.max_rounds}")
     print("-" * 40)
 
     for round_num in range(1, args.max_rounds + 1):
-        data = run_score(binary, rules_dir, current_file)
-        score = data.get("overall_score", 0)
-        matches = len(data.get("matches", []))
-        words = len(data.get("word_matches", []))
+        structural_matches = run_analyze(binary, rules_dir, current_file)
+        match_count = len(structural_matches)
 
-        print(f"\n[ralph] Round {round_num}: score={score}, patterns={matches}, words={words}")
+        print(f"\n[ralph] Round {round_num}: {match_count} structural matches")
 
-        if score < args.target_score:
+        if match_count <= args.target_matches:
             print(f"[ralph] Target reached. Cleaning complete.")
             final_path = ralph_dir / "cleaned.txt"
             final_path.write_text(current_file.read_text(encoding="utf-8"), encoding="utf-8")
             print(f"[ralph] Final text: {final_path}")
             sys.exit(0)
 
-        violations = extract_top_violations(data, n=5)
-        prompt = make_prompt(current_file.read_text(encoding="utf-8"), violations, round_num, score)
+        violations = extract_top_violations(structural_matches, n=5)
+        prompt = make_prompt(current_file.read_text(encoding="utf-8"), structural_matches, violations, round_num)
 
         response = call_llm(prompt)
         if response is None:
@@ -273,10 +258,10 @@ def main():
         cleaned = clean_response(response)
         current_file.write_text(cleaned, encoding="utf-8")
 
-    # Final score after max rounds
-    data = run_score(binary, rules_dir, current_file)
-    score = data.get("overall_score", 0)
-    print(f"\n[ralph] Max rounds reached. Final score: {score}")
+    # Final analyze after max rounds
+    structural_matches = run_analyze(binary, rules_dir, current_file)
+    match_count = len(structural_matches)
+    print(f"\n[ralph] Max rounds reached. Final structural matches: {match_count}")
     final_path = ralph_dir / "cleaned.txt"
     final_path.write_text(current_file.read_text(encoding="utf-8"), encoding="utf-8")
     print(f"[ralph] Final text: {final_path}")

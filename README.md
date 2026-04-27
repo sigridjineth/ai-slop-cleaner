@@ -32,15 +32,15 @@
   <a href="#architecture">Architecture</a>
 </p>
 
-**Score prose for AI-generated signals — in any language. Regex catches the structure; an LLM agent judges the intent.**
+Score prose for AI-generated signals in any language. Regex catches the structure, and an LLM agent judges the intent.
 
-AI Slop Cleaner is a dual-mode detection engine. A compiled Rust binary gives you fast, deterministic scoring for universal structural patterns (emoji floods, bullet blocks, bold abuse, em dashes). For semantic and language-specific signals — translationese, hedging, hype vocabulary, rhythm monotony — a plain-markdown pattern catalog lets any LLM agent judge prose without touching regex. No hardcoded language lists. No API keys required for scoring.
+AI Slop Cleaner is a dual-mode detection engine. A compiled Rust binary gives you fast, deterministic scoring for universal structural patterns (emoji floods, bullet blocks, bold abuse, em dashes). For semantic and language-specific signals (translationese, hedging, hype vocabulary, rhythm monotony), a plain-markdown pattern catalog lets any LLM agent judge prose without touching regex. No hardcoded language lists. No API keys required for scoring.
 
 ---
 
 ## Why AI Slop Cleaner?
 
-AI writing fails at the **surface**, not the facts. The reader trusts the content less before they finish the first paragraph.
+AI writing fails at the surface, not the facts. The reader trusts the content less before they finish the first paragraph.
 
 | Problem | What Happens | AI Slop Cleaner Fix |
 | :------ | :----------- | :------------------ |
@@ -52,13 +52,13 @@ AI writing fails at the **surface**, not the facts. The reader trusts the conten
 
 ## Quick Start
 
-**Install** — one command, everything auto-built:
+Install with one command, everything auto-built:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sigridjineth/ai-slop-cleaner/main/scripts/install.sh | bash
 ```
 
-**Score** — pass any markdown or plain text:
+Score by passing any markdown or plain text:
 
 ```bash
 ai-slop-cleaner score draft.md
@@ -67,16 +67,16 @@ ai-slop-cleaner score draft.md
 > The installer clones the repository, compiles the Rust binary, and drops a wrapper in `~/.local/bin` that auto-points to the built-in rules directory.
 
 <details>
-<summary><strong>Other install methods</strong></summary>
+<summary>Other install methods</summary>
 
-**cargo install (requires Rust >= 1.70):**
+|cargo install (requires Rust >= 1.70):
 ```bash
 cargo install --git https://github.com/sigridjineth/ai-slop-cleaner.git
 # Running with explicit rules directory
 ai-slop-cleaner --rules-dir ~/.cargo/git/checkouts/ai-slop-cleaner-*/rust/rules score draft.md
 ```
 
-**Build from clone:**
+|Build from clone:
 ```bash
 git clone https://github.com/sigridjineth/ai-slop-cleaner.git
 cd ai-slop-cleaner/rust
@@ -87,7 +87,7 @@ cargo build --release
 </details>
 
 <details>
-<summary><strong>Uninstall</strong></summary>
+<summary>Uninstall</summary>
 
 ```bash
 rm -rf ~/.local/share/ai-slop-cleaner
@@ -120,7 +120,7 @@ rules    ->  93 banned words/phrases with suggested replacements
               6 regex patterns (universal scope)
               70 agent patterns (multilingual scope)
 
-clean    ->  omx-delegate.sh runs iterative cleanup until score < 15
+clean    ->  ralph.py runs iterative cleanup until score < 15
 ```
 
 </details>
@@ -131,7 +131,7 @@ clean    ->  omx-delegate.sh runs iterative cleanup until score < 15
 
 | | Manual Review | Vanilla LLM Rewrite | AI Slop Cleaner |
 | :--- | :------------ | :------------------ | :---------------- |
-| Speed | Slow — read every line | Fast — but hidden slop remains | Fast regex alongside deep agent scan |
+| Speed | Slow; read every line | Fast, but hidden slop remains | Fast regex alongside deep agent scan |
 | Objectivity | "Looks fine to me" | No score, no threshold | 0–100 score with explicit gates |
 | Language | Native speaker required | Same training bias as the slop | Universal regex for any-language agent |
 | Actionable | Vague feedback | Full rewrite, no priorities | Ranked match list: fix top 5 first |
@@ -140,7 +140,7 @@ clean    ->  omx-delegate.sh runs iterative cleanup until score < 15
 
 ## The Loop
 
-AI Slop Cleaner does not just score — it guides revision. Two modes, one pipeline:
+AI Slop Cleaner does not just score. It guides revision. Two modes, one pipeline:
 
 ```
     Mode 1 (Regex)  ->  Mode 2 (Agent)  ->  Iterate
@@ -149,17 +149,17 @@ AI Slop Cleaner does not just score — it guides revision. Two modes, one pipel
     0.1 ms             1–2 s             Until score < 15
 ```
 
-Each pass does not repeat — it **evolves**. The agent reads the pattern catalog, judges the text by intent, and targets the highest-weight violations first.
+Each pass does not repeat. It evolves. The agent reads the pattern catalog, judges the text by intent, and targets the highest-weight violations first.
 
 | Phase | What Happens |
 | :---- | :----------- |
 | Regex | Fast universal scan: emoji, bullets, bold, em dashes, colon headings, `+` conjunctions |
 | Agent | LLM reads `patterns-agent.md` and judges semantic signals in any language |
-| Iterate | `omx-delegate.sh` runs ralph mode: score -> plan -> rewrite -> rescore, max 3 rounds |
+| Iterate | `ralph.py` runs the loop: score -> plan -> rewrite -> rescore, max 3 rounds |
 
-### Ralph: The Loop That Cleans
+### Ralph. The Loop That Cleans
 
-`./scripts/omx-delegate.sh <file>` runs the evolutionary loop persistently — across violation categories — until the score drops below 15 or 3 rounds complete. Each round is **stateless**: the JSON score report reconstructs the full violation lineage, so even if you restart, the loop picks up where it left off.
+`python3 scripts/ralph.py <file>` runs the evolutionary loop persistently across violation categories until the score drops below 15 or 3 rounds complete. Each round is stateless: the JSON score report reconstructs the full violation lineage, so even if you restart, the loop picks up where it left off.
 
 ```
 Ralph Cycle 1: score -> plan -> rewrite -> score 42 -> action=CONTINUE
@@ -200,7 +200,7 @@ Ralph Cycle 3: score -> plan -> rewrite -> score 12 -> action=STOP
 
 ## Rules
 
-All rules live in `rust/rules/` as markdown files. The binary reloads them on every run — no recompilation needed.
+All rules live in `rust/rules/` as markdown files. The binary reloads them on every run, so no recompilation is needed.
 
 | File | Purpose |
 | :--- | :------ |
@@ -248,7 +248,7 @@ For language-specific or semantic patterns, add a `###` section to `patterns-age
 ## Architecture
 
 <details>
-<summary><strong>Architecture overview — Rust</strong></summary>
+<summary>Architecture overview (Rust)</summary>
 
 ```
 rust/src/
@@ -267,17 +267,17 @@ references/
 └── ...
 
 scripts/
-└── omx-delegate.sh           # OMX iterative cleanup loop
+└── ralph.py                  # Standalone iterative cleanup script
 ```
 
-**Key internals:**
+|Key internals:
 
 | Component | What It Does |
 | :-------- | :----------- |
 | Language filter | `auto` detects Korean from Hangul ratio (≥5%); `en` applies English and universal; `ko` applies Korean and universal; `all` applies everything. |
 | Scoring | Sum of weighted matches, capped at 100. Formats: `text`, `json`, `markdown`. |
 | Agent mode | `patterns-agent.md` is pure prose. Any LLM reads it, then judges text by intent. No regex knowledge needed. |
-| OMX delegation | `scripts/omx-delegate.sh` runs the Rust binary, generates context, and delegates to `$team` / `$ralph` / `$ultrawork` in a single `omx exec` call. |
+| Loop script | `scripts/ralph.py` runs the Rust binary, generates prompts, and calls an LLM API or writes interactive prompts. No OMX needed. |
 
 </details>
 

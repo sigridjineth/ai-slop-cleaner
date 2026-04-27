@@ -18,7 +18,7 @@ For each text segment, the agent should:
 
 ### redefinition
 - **Severity:** medium
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Sentences that negate one concept and immediately redefine it with another. The pattern "A is not X, it is Y" or "not X but Y".
 - **Examples:**
@@ -29,7 +29,7 @@ For each text segment, the agent should:
 
 ### closing_summary
 - **Severity:** low
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Explicit closing phrases that signal a summary is coming.
 - **Examples:**
@@ -40,7 +40,7 @@ For each text segment, the agent should:
 
 ### progress_announcement
 - **Severity:** medium
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Phrases that announce what the writer is about to do, rather than just doing it.
 - **Examples:**
@@ -51,7 +51,7 @@ For each text segment, the agent should:
 
 ### pre_classification
 - **Severity:** low
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Framing a topic by announcing how many categories it has before listing them.
 - **Examples:**
@@ -61,7 +61,7 @@ For each text segment, the agent should:
 
 ### imagine_prompt
 - **Severity:** low
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Prompting the reader to imagine or visualize something.
 - **Examples:**
@@ -71,7 +71,7 @@ For each text segment, the agent should:
 
 ### broad_field_dump
 - **Severity:** medium
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 1.5
 - **Description:** A broad overview sentence followed immediately by a colon and a list of fields/attributes.
 - **Examples:**
@@ -80,7 +80,7 @@ For each text segment, the agent should:
 
 ### colon_enumeration
 - **Severity:** medium
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 1.5
 - **Description:** A short phrase followed by a colon, then comma-separated items.
 - **Examples:**
@@ -89,7 +89,7 @@ For each text segment, the agent should:
 
 ### a_not_b_redefinition
 - **Severity:** high
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 2.5
 - **Description:** Stronger variant of redefinition. Explicit "is not X, it is Y" with clear negation and assertion.
 - **Examples:**
@@ -99,7 +99,7 @@ For each text segment, the agent should:
 
 ### a_not_b_english
 - **Severity:** high
-- **Lang Scope:** english
+- **Lang Scope:** universal
 - **Weight:** 2.5
 - **Description:** English-specific "is not just X" pattern.
 - **Examples:**
@@ -112,7 +112,7 @@ For each text segment, the agent should:
 
 ### ko_A1_about_regarding
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Translationese pattern using '~에 대해/대하여' where simpler phrasing would work.
 - **Examples:**
@@ -121,7 +121,7 @@ For each text segment, the agent should:
 
 ### ko_A2_through
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Overuse of '~를 통해/통하여' as a connector.
 - **Examples:**
@@ -130,7 +130,7 @@ For each text segment, the agent should:
 
 ### ko_A3_in_terms
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Translationese '~에 있어서' pattern.
 - **Examples:**
@@ -139,7 +139,7 @@ For each text segment, the agent should:
 
 ### ko_A4_point_sense
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** The formulaic '~라는 점에서' reasoning connector.
 - **Examples:**
@@ -148,7 +148,7 @@ For each text segment, the agent should:
 
 ### ko_A5_related
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** '~와 관련하여/관련된' when a simpler connection would suffice.
 - **Examples:**
@@ -156,7 +156,7 @@ For each text segment, the agent should:
 
 ### ko_A6_based_on
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** '~에 기반하여/바탕으로' overuse.
 - **Examples:**
@@ -165,7 +165,7 @@ For each text segment, the agent should:
 
 ### ko_A7_have
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** '가지고 있다' possessive translationese.
 - **Examples:**
@@ -174,7 +174,7 @@ For each text segment, the agent should:
 
 ### ko_A8_double_passive
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Double passive constructions that sound unnatural in Korean.
 - **Examples:**
@@ -183,7 +183,7 @@ For each text segment, the agent should:
 
 ### ko_A9_by_passive
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** '~에 의해' passive construction.
 - **Examples:**
@@ -191,7 +191,7 @@ For each text segment, the agent should:
 
 ### ko_A10_can_overuse
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Overuse of '~할 수 있다' can-form.
 - **Examples:**
@@ -200,7 +200,7 @@ For each text segment, the agent should:
 
 ### ko_A11_purpose
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** '~을 위해(서)' purpose clause overuse.
 - **Examples:**
@@ -208,7 +208,7 @@ For each text segment, the agent should:
 
 ### ko_A12_automated_passive
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** '만들어지다/이루어지다' automated passive forms.
 - **Examples:**
@@ -216,7 +216,7 @@ For each text segment, the agent should:
 
 ### ko_A13_noun_stack
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** English-like noun stacking with abstract suffixes.
 - **Examples:**
@@ -225,7 +225,7 @@ For each text segment, the agent should:
 
 ### ko_A14_and_sentence
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Starting sentences with '그리고' repeatedly.
 - **Examples:**
@@ -234,7 +234,7 @@ For each text segment, the agent should:
 
 ### ko_A15_abstract_subject
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.5
 - **Description:** Abstract subject + all-purpose verb combinations.
 - **Examples:**
@@ -243,7 +243,7 @@ For each text segment, the agent should:
 
 ### ko_B1_parenthesized_english
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Korean term followed by English in parentheses.
 - **Examples:**
@@ -252,7 +252,7 @@ For each text segment, the agent should:
 
 ### ko_B2_raw_english_term
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Untranslated English buzzwords in Korean text.
 - **Examples:**
@@ -261,7 +261,7 @@ For each text segment, the agent should:
 
 ### ko_B3_long_english_quote
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Long English quotes embedded in Korean prose.
 - **Examples:**
@@ -269,7 +269,7 @@ For each text segment, the agent should:
 
 ### ko_B4_known_as
 - **Severity:** low
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 0.5
 - **Description:** '~라고 알려진/~로 일컬어지는' formulaic expressions.
 - **Examples:**
@@ -277,7 +277,7 @@ For each text segment, the agent should:
 
 ### ko_C1_mechanical_enumeration
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Mechanical use of '첫째, 둘째, 셋째' enumeration.
 - **Examples:**
@@ -293,13 +293,13 @@ For each text segment, the agent should:
 
 ### ko_C3_generic_headings
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Generic headings like '도입', '서론', '본론', '결론'.
 
 ### ko_C4_topic_sentence
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Formulaic topic sentences.
 - **Examples:**
@@ -318,7 +318,7 @@ For each text segment, the agent should:
 
 ### ko_C6_heading_summary
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Heading immediately followed by a summary sentence.
 - **Examples:**
@@ -326,7 +326,7 @@ For each text segment, the agent should:
 
 ### ko_C7_three_step
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** The '먼저/반면/결국' formulaic structure.
 - **Examples:**
@@ -334,7 +334,7 @@ For each text segment, the agent should:
 
 ### ko_C8_binary_parallel
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Binary parallelism with 'A인가, B인가'.
 - **Examples:**
@@ -342,7 +342,7 @@ For each text segment, the agent should:
 
 ### ko_C9_numeric_index
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Numeric indexing like '1) 2) 3)'.
 
@@ -356,7 +356,7 @@ For each text segment, the agent should:
 
 ### ko_D1_conclusion_phrase
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Formulaic conclusion phrases.
 - **Examples:**
@@ -367,7 +367,7 @@ For each text segment, the agent should:
 
 ### ko_D2_importance_cliche
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Overused importance expressions.
 - **Examples:**
@@ -377,7 +377,7 @@ For each text segment, the agent should:
 
 ### ko_D3_list_intro
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Formulaic list introductions.
 - **Examples:**
@@ -386,7 +386,7 @@ For each text segment, the agent should:
 
 ### ko_D4_hype
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** Hype vocabulary and exaggerated claims.
 - **Examples:**
@@ -397,7 +397,7 @@ For each text segment, the agent should:
 
 ### ko_D5_personified_abstract
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.5
 - **Description:** Personifying abstract subjects.
 - **Examples:**
@@ -406,7 +406,7 @@ For each text segment, the agent should:
 
 ### ko_D6_closing_formula
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.5
 - **Description:** Formulaic closing expressions.
 - **Examples:**
@@ -415,7 +415,7 @@ For each text segment, the agent should:
 
 ### ko_D7_transformation_formula
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** X에서 Y로 transformation slogan.
 - **Examples:**
@@ -424,26 +424,26 @@ For each text segment, the agent should:
 
 ### ko_E1_sentence_length_uniformity
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Uniform sentence lengths (rhythm detection).
 - **Note:** Detected via rhythm analysis, not just regex.
 
 ### ko_E2_repeated_sentence_endings
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Repeated sentence endings like '것이다', '합니다'.
 
 ### ko_E3_uniform_paragraph_blocks
 - **Severity:** low
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 0.5
 - **Description:** Paragraphs of uniform length.
 
 ### ko_F1_degree_adverb
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Excessive degree adverbs.
 - **Examples:**
@@ -452,7 +452,7 @@ For each text segment, the agent should:
 
 ### ko_F2_double_modifier
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Synonym double modifiers.
 - **Examples:**
@@ -461,13 +461,13 @@ For each text segment, the agent should:
 
 ### ko_F3_role_function
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** '역할과 기능/의미와 가치' doublets.
 
 ### ko_F4_suffix_abuse
 - **Severity:** low
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 0.5
 - **Description:** Abstract suffix overuse (-적, -성, -화).
 - **Examples:**
@@ -477,7 +477,7 @@ For each text segment, the agent should:
 
 ### ko_F5_jeok_chain
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** ~적 N abstract chains.
 - **Examples:**
@@ -486,7 +486,7 @@ For each text segment, the agent should:
 
 ### ko_G1_hedging
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Hedge endings that weaken statements.
 - **Examples:**
@@ -495,7 +495,7 @@ For each text segment, the agent should:
 
 ### ko_G2_double_hedge
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.5
 - **Description:** Double or triple hedges.
 - **Examples:**
@@ -504,7 +504,7 @@ For each text segment, the agent should:
 
 ### ko_H1_connector
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Sentence-initial connectors.
 - **Examples:**
@@ -514,7 +514,7 @@ For each text segment, the agent should:
 
 ### ko_H2_contrast_connector
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Contrast connectors at sentence start.
 - **Examples:**
@@ -523,7 +523,7 @@ For each text segment, the agent should:
 
 ### ko_H3_meta_entry
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.5
 - **Description:** Meta-commentary entries.
 - **Examples:**
@@ -532,7 +532,7 @@ For each text segment, the agent should:
 
 ### ko_H4_ie
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 0.5
 - **Description:** Overuse of '즉' as a redefining connector.
 
@@ -549,7 +549,7 @@ For each text segment, the agent should:
 
 ### ko_I1_geotida
 - **Severity:** high
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 2.0
 - **Description:** '~것이다' formal ending overuse.
 - **Examples:**
@@ -558,7 +558,7 @@ For each text segment, the agent should:
 
 ### ko_I2_dependent_noun
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Dependent noun crutches.
 - **Examples:**
@@ -568,7 +568,7 @@ For each text segment, the agent should:
 
 ### ko_I3_means_ending
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** '~다는 뜻/의미/점이다' endings.
 - **Examples:**
@@ -577,7 +577,7 @@ For each text segment, the agent should:
 
 ### ko_I4_need_to
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** '~필요가 있다/해야 한다' formulas.
 - **Examples:**
@@ -586,7 +586,7 @@ For each text segment, the agent should:
 
 ### ko_I5_needed
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Abstract '필요하다' formulas.
 - **Examples:**
@@ -594,7 +594,7 @@ For each text segment, the agent should:
 
 ### ko_I6_ability_noun
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** N + 능력 ability nouns.
 - **Examples:**
@@ -609,7 +609,7 @@ For each text segment, the agent should:
 
 ### ko_J2_quote_emphasis
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 0.5
 - **Description:** Quote emphasis decoration.
 
@@ -621,7 +621,7 @@ For each text segment, the agent should:
 
 ### ko_J4_parenthetical_aside
 - **Severity:** medium
-- **Lang Scope:** korean
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Parenthetical explanatory asides.
 - **Examples:**
@@ -634,7 +634,7 @@ For each text segment, the agent should:
 
 ### hi_ke_madhyam_se_connector
 - **Severity:** medium
-- **Lang Scope:** hindi
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Translationese overuse of "के माध्यम से" as a generic through/by connector when a shorter postposition such as "से" or a direct verb would sound more natural.
 - **Examples:**
@@ -644,7 +644,7 @@ For each text segment, the agent should:
 
 ### hi_sakta_hai_overuse
 - **Severity:** medium
-- **Lang Scope:** hindi
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Repeated impersonal "किया जा सकता है / देखा जा सकता है / समझा जा सकता है" can-passive phrasing that weakens direct prose.
 - **Examples:**
@@ -658,7 +658,7 @@ For each text segment, the agent should:
 
 ### ar_min_khilal_connector
 - **Severity:** medium
-- **Lang Scope:** arabic
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Overuse of "من خلال" as a generic through/by connector when "بـ", "عبر", or a direct verb would be cleaner.
 - **Examples:**
@@ -668,7 +668,7 @@ For each text segment, the agent should:
 
 ### ar_bishakl_adverbial
 - **Severity:** medium
-- **Lang Scope:** arabic
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Formulaic "بشكل + adjective" adverbial padding where Arabic can use a direct adverb, adjective, or stronger verb.
 - **Examples:**
@@ -682,7 +682,7 @@ For each text segment, the agent should:
 
 ### tr_olarak_adverbial
 - **Severity:** medium
-- **Lang Scope:** turkish
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** Overuse of "olarak" to form abstract adverbial phrases where Turkish can use a suffix, direct adjective, or simpler wording.
 - **Examples:**
@@ -692,7 +692,7 @@ For each text segment, the agent should:
 
 ### tr_sahip_olmak_calque
 - **Severity:** medium
-- **Lang Scope:** turkish
+- **Lang Scope:** universal
 - **Weight:** 1.0
 - **Description:** English-like "sahip olmak" possession calque for qualities/features where "var", a suffix, or a direct predicate would be more natural.
 - **Examples:**

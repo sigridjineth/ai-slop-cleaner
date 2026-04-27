@@ -40,11 +40,9 @@ ai-slop-cleaner/
 
 1. MCP client calls `ai_slop_score`, `ai_slop_analyze`, or `ai_slop_check`.
 2. `mcp/tools.py` resolves `text` or `file` input.
-3. `core/detector.py` builds a prompt from `agent-prompt-template.md`, embedding:
-   - `references/banned-words.md`
-   - `references/banned-patterns.md`
-   - `references/agent-response-schema.json`
-   - the target text
+3. `core/detector.py` builds a prompt from `agent-prompt-template.md` by
+   embedding `references/banned-words.md`, `references/banned-patterns.md`,
+   `references/agent-response-schema.json`, and the target text.
 4. The detector tries `claude --print` first.
 5. If Claude is unavailable, times out, or returns invalid JSON, the detector tries `codex exec`.
 6. If no agent returns a valid response, `core/fallback.py` runs deterministic regex detection.
@@ -77,13 +75,9 @@ Score = round(100 * (
 ))
 ```
 
-Components:
-
-- `BWD`: banned word and banned phrase density.
-- `SPV`: structural pattern violations.
-- `RHY`: rhythm monotony.
-- `META`: meta commentary density.
-- `MD`: markdown overuse.
+Components are `BWD` for banned word and banned phrase density, `SPV` for
+structural pattern violations, `RHY` for rhythm monotony, `META` for meta
+commentary density, and `MD` for markdown overuse.
 
 ## Fallback contract
 

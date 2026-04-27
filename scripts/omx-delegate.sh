@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-Slop-Cleaner OMX Delegation Wrapper
-# Usage: ./omx-delegate.sh <input-file> [output-dir]
+# Usage is ./omx-delegate.sh <input-file> [output-dir]
 #
 # This script orchestrates the ai-slop-cleaner Rust binary through oh-my-codex
 # by running analysis, generating a TASK.md context, and delegating cleanup.
@@ -28,7 +28,7 @@ fi
 
 mkdir -p "${OUTPUT_DIR}"
 
-# Step 1: Run analysis and capture JSON
+# Step 1 runs analysis and captures JSON
 JSON_OUT="${OUTPUT_DIR}/analysis.json"
 echo "[omx-delegate] Running ai-slop-cleaner analysis on ${INPUT_FILE}..."
 "${BINARY}" --rules-dir "${RULES_DIR}" score "${INPUT_FILE}" --format json > "${JSON_OUT}"
@@ -39,24 +39,23 @@ WORDS=$(python3 -c "import json; print(len(json.load(open('${JSON_OUT}')).get('w
 
 echo "[omx-delegate] Score: ${SCORE}, Pattern matches: ${MATCHES}, Word matches: ${WORDS}"
 
-# Step 2: Generate OMX context document
+# Step 2 generates the OMX context document
 CONTEXT_FILE="${OUTPUT_DIR}/omx-context.md"
 cat > "${CONTEXT_FILE}" <<EOF
-# OMX Context: AI-Slop-Cleaner Analysis
+# OMX Context for AI-Slop-Cleaner Analysis
 
 ## Input File
-- Path: ${INPUT_FILE}
-- Analysis JSON: ${JSON_OUT}
+Path is ${INPUT_FILE}.
+Analysis JSON is ${JSON_OUT}.
 
 ## Score Summary
-- Overall Score: ${SCORE}/100 (higher = more AI slop detected)
-- Pattern Matches: ${MATCHES}
-- Word Matches: ${WORDS}
+Overall score is ${SCORE}/100; higher means more AI slop detected.
+Pattern matches: ${MATCHES}.
+Word matches: ${WORDS}.
 
 ## Ruleset
-- Patterns: 70 banned structural patterns
-- Words: 93 banned words/phrases
-- Rules Directory: ${RULES_DIR}
+The ruleset contains 70 banned structural patterns and 93 banned words or
+phrases. Rules directory: ${RULES_DIR}.
 
 ## Task
 Improve the input text to reduce the AI slop score below 15.0.
@@ -73,7 +72,7 @@ EOF
 
 echo "[omx-delegate] Context written to ${CONTEXT_FILE}"
 
-# Step 3: Check if omx is available and delegate
+# Step 3 checks whether omx is available and delegates
 if command -v omx &>/dev/null; then
     echo "[omx-delegate] Delegating to oh-my-codex..."
     # Use npx to run latest codex since global install is outdated

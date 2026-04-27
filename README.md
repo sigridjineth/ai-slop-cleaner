@@ -1,6 +1,6 @@
 # AI Slop Cleaner
 
-Detect AI-generated prose patterns ("AI slop") in any language. A Rust CLI handles fast regex scoring for universal structural signals (emoji, bold abuse, em dashes, plus-sign conjunctions). Language-specific and semantic patterns are defined in plain markdown and evaluated by an LLM agent — no hardcoded language lists.
+Detect AI-generated prose patterns ("AI slop") in any language. A Rust CLI handles fast regex scoring for universal structural signals (emoji, bold abuse, em dashes, plus-sign conjunctions). Language-specific and semantic patterns are defined in plain markdown and evaluated by an LLM agent, with no hardcoded language lists.
 
 ## Dual-mode architecture
 
@@ -22,16 +22,16 @@ Detect AI-generated prose patterns ("AI slop") in any language. A Rust CLI handl
 └─────────────────────────────────────────────┘
 ```
 
-**Mode 1** catches language-agnostic formatting signals that regex handles well: bullet blocks, emoji decoration, colon headings, bold overuse, em dashes, and `+` conjunctions.
+Mode 1 catches language-agnostic formatting signals that regex handles well: bullet blocks, emoji decoration, colon headings, bold overuse, em dashes, and `+` conjunctions.
 
-**Mode 2** covers everything else — translationese, hedging, hype vocabulary, closing formulas, rhythm monotony — across English, Korean, Japanese, Chinese, or any language an LLM can read. The pattern catalog (`rules/patterns-agent.md`, 718 lines) describes each signal in plain prose with severity, weight, examples, and multilingual notes.
+Mode 2 covers everything else: translationese, hedging, hype vocabulary, closing formulas, and rhythm monotony across English, Korean, Japanese, Chinese, or any language an LLM can read. The pattern catalog (`rules/patterns-agent.md`, 718 lines) describes each signal in plain prose with severity, weight, examples, and multilingual notes.
 
 ## Install
 
 ```bash
 cd rust
 cargo build --release
-# binary: rust/target/release/ai-slop-cleaner
+# built binary path is rust/target/release/ai-slop-cleaner
 ```
 
 ## Usage
@@ -72,13 +72,13 @@ ai-slop-cleaner rules
 
 ## Rules
 
-All rules live in `rust/rules/` as markdown files. The binary reloads them on every run — no recompilation needed.
+All rules live in `rust/rules/` as markdown files. The binary reloads them on every run, so no recompilation is needed.
 
 | File | Purpose |
 |------|---------|
 | `banned-patterns.md` | 6 universal regex patterns (bullet block, emoji, colon heading, bold, em dash, plus conjunction) |
 | `banned-words.md` | 93 banned words and phrases with replacements (English buzzwords, English phrases, Korean buzzwords) |
-| `patterns-agent.md` | 70 patterns in plain prose for LLM agent evaluation — covers 10 categories across any language |
+| `patterns-agent.md` | 70 patterns in plain prose for LLM agent evaluation; covers 10 categories across any language |
 
 ### Pattern categories (agent mode)
 
@@ -105,16 +105,15 @@ For universal regex patterns, add a row to `banned-patterns.md`:
 
 For language-specific or semantic patterns, add a `###` section to `patterns-agent.md`:
 
-```markdown
-### my_pattern
-- **Severity:** medium
-- **Lang Scope:** english
-- **Weight:** 1.5
-- **Description:** What the pattern detects and why it matters.
-- **Examples:**
-  - "Example sentence that matches."
-- **Multilingual note:** How this manifests in other languages.
-```
+| Field | Example value |
+|-------|---------------|
+| Heading | `### my_pattern` |
+| Severity | `medium` |
+| Lang Scope | `english` |
+| Weight | `1.5` |
+| Description | What the pattern detects and why it matters. |
+| Examples | "Example sentence that matches." |
+| Multilingual note | How this manifests in other languages. |
 
 ## Agent mode
 

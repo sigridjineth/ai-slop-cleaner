@@ -1,4 +1,4 @@
-# AI Slop Cleaner — Codex Detection Subagent
+# AI Slop Cleaner for Codex Detection Subagent
 
 Act as the Codex subagent for `ai-slop-cleaner` v2. Detect AI-slop signals and
 return JSON only. Do not rewrite prose and do not include commentary outside JSON.

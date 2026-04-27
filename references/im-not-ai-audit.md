@@ -1,4 +1,4 @@
-# im-not-ai + H.U.M.A.N. Coverage Audit
+# im-not-ai and H.U.M.A.N. Coverage Audit
 
 Date: 2026-04-26  
 Audited external source: `epoko77-ai/im-not-ai` at commit `3fab1d8451170f10270b3168a97dd05fca010f6f`  
@@ -8,43 +8,25 @@ Primary files read: `README.md`, `CLAUDE.md`, `.claude/agents/ai-tell-detector.m
 
 ### `src/ai_slop_cleaner/`
 
-- `src/ai_slop_cleaner/__init__.py`
-- `src/ai_slop_cleaner/cli.py`
-- `src/ai_slop_cleaner/core/__init__.py`
-- `src/ai_slop_cleaner/core/banned_patterns.py`
-- `src/ai_slop_cleaner/core/banned_words.py`
-- `src/ai_slop_cleaner/core/detector.py`
-- `src/ai_slop_cleaner/core/fallback.py`
-- `src/ai_slop_cleaner/core/scorer.py`
-- `src/ai_slop_cleaner/mcp/__init__.py`
-- `src/ai_slop_cleaner/mcp/server.py`
-- `src/ai_slop_cleaner/mcp/tools.py`
-- `src/ai_slop_cleaner/references/__init__.py`
-- `src/ai_slop_cleaner/references/agent-prompt-template.md`
-- `src/ai_slop_cleaner/references/agent-response-schema.json`
-- `src/ai_slop_cleaner/references/banned-patterns.md`
-- `src/ai_slop_cleaner/references/banned-words.md`
+Audited source covered the package entry files, `cli.py`, the `core/` modules
+for banned patterns, banned words, detector, fallback, and scorer logic, the
+`mcp/` server and tool modules, and the packaged reference files for the agent
+prompt, response schema, banned patterns, and banned words.
 
-Ignored runtime caches (`__pycache__/*.pyc`) were present locally but are not implementation source files.
+Ignored Python bytecode caches were present locally but are not implementation source files.
 
 ### `references/`
 
-- `references/agent-driven-spec.md`
-- `references/agent-prompt-template.md`
-- `references/agent-response-schema.json`
-- `references/banned-patterns.md`
-- `references/banned-words.md`
-- `references/human-checklist.md`
-- `references/im-not-ai-audit.md`
-- `references/slop-score-spec.md`
+Audited references covered the agent-driven spec, agent prompt template,
+response schema, banned pattern and word references, human checklist, this
+audit, and the slop-score spec.
 
 ## Summary
 
-- Total im-not-ai taxonomy rules extracted: **60**
-- Covered after this audit patch: **60**
-- Missing after this audit patch: **0**
-- Direct regex examples added: **57** (`ko_A1_*` through `ko_J4_*`, excluding statistical E rules)
-- Statistical/document-level rules covered by RHY: **3** (`E-1`, `E-2`, `E-3`)
+The audit extracted 60 im-not-ai taxonomy rules. Coverage after the patch is 60
+of 60, with 0 missing rules. Direct regex examples account for 57 rules
+(`ko_A1_*` through `ko_J4_*`, excluding statistical E rules), while RHY covers
+the 3 statistical/document-level rules (`E-1`, `E-2`, `E-3`).
 
 ## Comparison matrix
 
@@ -64,8 +46,8 @@ Ignored runtime caches (`__pycache__/*.pyc`) were present locally but are not im
 | A-12 | `만들어지다/이루어지다` automated passive | Covered by `ko_A12_automated_passive` (SPV) |
 | A-13 | English-like Korean noun stack | Covered by `ko_A13_noun_stack` (SPV) |
 | A-14 | sentence-initial `그리고` | Covered by `ko_A14_and_sentence` (SPV) |
-| A-15 | abstract subject + generic verb (`보여준다/제공한다/...`) | Covered by `ko_A15_abstract_subject` (SPV) |
-| B-1 | Korean term + English parenthetical | Covered by `ko_B1_parenthesized_english` (SPV) |
+| A-15 | abstract subject with generic verb (`보여준다/제공한다/...`) | Covered by `ko_A15_abstract_subject` (SPV) |
+| B-1 | Korean term with English parenthetical | Covered by `ko_B1_parenthesized_english` (SPV) |
 | B-2 | untranslated buzzwords (`framework`, `pipeline`, etc.) | Covered by `ko_B2_raw_english_term` (SPV) and banned words |
 | B-3 | long English quote embedded in Korean prose | Covered by `ko_B3_long_english_quote` (SPV) |
 | B-4 | `~라고 알려진/~로 일컬어지는` | Covered by `ko_B4_known_as` (SPV) |
@@ -89,7 +71,7 @@ Ignored runtime caches (`__pycache__/*.pyc`) were present locally but are not im
 | E-1 | low sentence-length variation | Covered by RHY coefficient-of-variation penalty |
 | E-2 | repeated Korean sentence endings | Covered by Korean ending keys in RHY repeated-ending rate |
 | E-3 | uniform 3-4 sentence paragraph mold | Covered by paragraph-length CV penalty in RHY |
-| F-1 | degree adverbs (`매우`, `정말`, etc.) | Covered by `ko_F1_degree_adverb` and banned words |
+| F-1 | degree adverbs from the Korean banned-word list | Covered by `ko_F1_degree_adverb` and banned words |
 | F-2 | synonym double modifiers | Covered by `ko_F2_double_modifier` (SPV) |
 | F-3 | `역할과 기능`, `의미와 가치` doublets | Covered by `ko_F3_role_function` (SPV) |
 | F-4 | `~적 측면/관점`, `~성`, `~화` overuse | Covered by `ko_F4_suffix_abuse` (SPV) |
@@ -115,11 +97,11 @@ Ignored runtime caches (`__pycache__/*.pyc`) were present locally but are not im
 
 | Element | Detection/diagnostic coverage |
 |---|---|
-| H — Honest human flaws | `doc_patterns.human_framework.H_honest_human_flaws` counts markers such as `솔직히 말하면`, `to be fair`, `honestly`; over-polished absence is interpreted alongside RHY/SPV rather than as standalone authorship proof. |
-| U — Unpredictable structure | RHY sentence/paragraph variation, SPV repeated templates, connector monotony, section-mold detection, and MD structure ratios. |
-| M — Memorable specifics | `doc_patterns.human_framework.M_memorable_specifics` counts numbers/dates/example markers such as `예를 들어`; the score does not penalize every low-specificity text because genre context matters. |
-| A — Authentic perspective | `doc_patterns.human_framework.A_authentic_perspective` counts markers such as `제 경험으로는`, `개인적으로`, `in my experience`. |
-| N — Natural flow | SPV connector monotony, RHY repeated openers, and `doc_patterns.human_framework.N_natural_flow` conversational connector counts. |
+| H: Honest human flaws | `doc_patterns.human_framework.H_honest_human_flaws` counts markers such as `솔직히 말하면`, `to be fair`, `honestly`; over-polished absence is interpreted alongside RHY/SPV rather than as standalone authorship proof. |
+| U: Unpredictable structure | RHY sentence/paragraph variation, SPV repeated templates, connector monotony, section-mold detection, and MD structure ratios. |
+| M: Memorable specifics | `doc_patterns.human_framework.M_memorable_specifics` counts numbers/dates/example markers such as `예를 들어`; the score does not penalize every low-specificity text because genre context matters. |
+| A: Authentic perspective | `doc_patterns.human_framework.A_authentic_perspective` counts markers such as `제 경험으로는`, `개인적으로`, `in my experience`. |
+| N: Natural flow | SPV connector monotony, RHY repeated openers, and `doc_patterns.human_framework.N_natural_flow` conversational connector counts. |
 
 ## Regex validation
 
@@ -127,17 +109,21 @@ Representative examples for all direct im-not-ai patterns are in `tests/test_im_
 
 ## Score formula adequacy
 
-The existing five-component formula remains adequate for triage because every im-not-ai category maps into an existing component:
-
-- A/B/D/F/G/H/I → mostly `SPV`, with high-confidence lexical items also contributing to `BWD`/`META`.
-- C/J → `SPV` plus `MD`.
-- E → `RHY`.
-- H.U.M.A.N. positive signals → reported in `doc_patterns` instead of adding a sixth score component, preserving the published score formula and avoiding genre-biased false positives.
+The existing five-component formula remains adequate for triage because every
+im-not-ai category maps into an existing component. A/B/D/F/G/H/I map mostly to
+`SPV`, with high-confidence lexical items also contributing to `BWD`/`META`.
+C/J maps to `SPV` plus `MD`, and E maps to `RHY`. H.U.M.A.N. positive signals
+are reported in `doc_patterns` instead of adding a sixth score component, which
+preserves the published score formula and avoids genre-biased false positives.
 
 The audit also aligned `META` to the documented `/6` density cap and upgraded `MD` to the documented bullet/heading/table/emphasis weighted formula.
 
 ## Known false-positive / false-negative considerations
 
-- Some Korean patterns are intentionally broad (`~해야 한다`, quote emphasis, `~적 N`). They are useful triage signals, not authorship proof; severity and density should guide action.
-- H.U.M.A.N. positive markers are diagnostics only. A legal brief or API reference may not need personal perspective or honest caveats.
-- Span offsets in fallback are based on `clean_text` after code/front-matter stripping; agent paths can still provide original offsets when available.
+Some Korean patterns are intentionally broad (`~해야 한다`, quote emphasis,
+`~적 N`). They are useful triage signals, not authorship proof; severity and
+density should guide action. H.U.M.A.N. positive markers are diagnostics only,
+so a legal brief or API reference may not need personal perspective or honest
+caveats. Span offsets in fallback are based on `clean_text` after
+code/front-matter stripping; agent paths can still provide original offsets when
+available.

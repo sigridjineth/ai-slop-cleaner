@@ -13,9 +13,9 @@ Repo: `~/.hermes/skills/ai-slop-cleaner` (also at `sigridjineth/ai-slop-cleaner`
 
 ## When to Use
 
-- Scoring a draft before publishing (CLI or CI).
-- Feeding analysis results into an agent rewrite loop (OMX, Claude, Codex).
-- Adding slop detection to any LLM pipeline that reads markdown.
+Use this skill to score a draft before publishing, feed analysis results into an
+agent rewrite loop (OMX, Claude, Codex), or add slop detection to any LLM
+pipeline that reads markdown.
 
 ## Quick Start
 
@@ -37,26 +37,32 @@ A pre-built aarch64 Linux binary lives in `releases/`.
 
 ## Two Detection Modes
 
-### Mode 1 — Regex (Rust binary)
+### Mode 1 Regex (Rust binary)
 
-The binary loads two markdown tables at runtime:
-
-- `rules/banned-patterns.md` — 70 structural regex patterns with `Lang Scope` column (`universal`, `english`, `korean`). Universal patterns (bold, em dash, bullet block, emoji, colon heading, buzzwords) apply to all languages. Regex cells are backtick-wrapped so `|` inside alternation groups parses correctly.
-- `rules/banned-words.md` — 93 banned words/phrases with suggested replacements.
+The binary loads two markdown tables at runtime. `rules/banned-patterns.md`
+contains 70 structural regex patterns with a `Lang Scope` column
+(`universal`, `english`, `korean`). Universal patterns such as bold, em dash,
+bullet block, emoji, colon heading, and buzzword checks apply to all languages.
+Regex cells are backtick-wrapped so `|` inside alternation groups parses
+correctly. `rules/banned-words.md` contains 93 banned words or phrases with
+suggested replacements.
 
 Language filtering via `--lang auto|en|ko|all`:
-- `auto`: detects language from Hangul ratio (≥5% = Korean)
-- `en`: applies `english` + `universal` patterns, skips `korean`
-- `ko`: applies `korean` + `universal` patterns, skips `english`
-- `all`: applies all patterns
+
+| Mode | Behavior |
+|------|----------|
+| `auto` | Detects language from Hangul ratio (≥5% = Korean). |
+| `en` | Applies `english` and `universal` patterns; skips `korean`. |
+| `ko` | Applies `korean` and `universal` patterns; skips `english`. |
+| `all` | Applies all patterns. |
 
 Output: a 0–100 score (sum of weighted matches, capped). Formats: `text`, `json`, `markdown`.
 
-### Mode 2 — Agent-Readable Patterns (multilingual)
+### Mode 2 Agent-Readable Patterns (multilingual)
 
 `rules/patterns-agent.md` (649 lines) describes every pattern in plain prose with severity, weight, examples, and multilingual notes. No regex knowledge needed.
 
-An LLM agent reads this file, then judges whether a given text matches each pattern by intent — not by string match. This covers languages and nuances that regex cannot reach (Japanese, Chinese, mixed-code prose, cultural idioms).
+An LLM agent reads this file, then judges whether a given text matches each pattern by intent rather than by string match. This covers languages and nuances that regex cannot reach (Japanese, Chinese, mixed-code prose, cultural idioms).
 
 The agent prompt template lives in `references/agent-prompt-template.md`. It embeds the banned-words list, the pattern catalog, and a JSON response schema with five scoring components:
 
@@ -68,11 +74,10 @@ BWD = banned word density, SPV = structural pattern violations, RHY = rhythm mon
 
 ## Architecture
 
-Rust source is in `rust/src/`:
-
-- `pattern_loader.rs` — parses markdown tables with backtick-aware column splitting.
-- `scorer.rs` — matches text line-by-line against loaded rules, accumulates weighted score.
-- `main.rs` — CLI with `score`, `stdin`, `rules` subcommands.
+Rust source is in `rust/src/`. `pattern_loader.rs` parses markdown tables with
+backtick-aware column splitting, `scorer.rs` matches text line by line against
+loaded rules and accumulates weighted score, and `main.rs` provides the
+`score`, `stdin`, and `rules` CLI subcommands.
 
 ## Adding or Editing Rules
 
@@ -92,6 +97,8 @@ It runs the Rust binary, generates context for Codex, and delegates to `$team` /
 
 ## Pitfalls
 
-- The prompt document itself scores 100/100 because it lists banned words as examples. Self-referential documents are expected to score high.
-- Regex cells in `banned-patterns.md` must stay inside backticks. Removing backticks breaks alternation parsing.
-- `banned_words.json` is a legacy artifact from the Go/Python era; the Rust binary reads `banned-words.md` instead.
+The prompt document itself scores 100/100 because it lists banned words as
+examples; self-referential documents are expected to score high. Regex cells in
+`banned-patterns.md` must stay inside backticks because removing backticks breaks
+alternation parsing. `banned_words.json` is a legacy artifact from the Go/Python
+era; the Rust binary reads `banned-words.md` instead.

@@ -4,7 +4,7 @@ Version: 0.1.0
 Status: draft for `ai-slop-cleaner` implementation  
 Scale: `0` means no detected AI-slop signals; `100` means dense, repeated, high-confidence slop signals.
 
-## Source model: Ouroboros ambiguity scoring
+## Source model for Ouroboros ambiguity scoring
 
 This score borrows the shape of Ouroboros's ambiguity gate, not its subject matter. Ouroboros measures readiness by scoring several clarity dimensions from `0.0` to `1.0`, weighting them, then computing ambiguity as the inverse of weighted clarity:
 
@@ -31,13 +31,8 @@ Research references:
 
 The score estimates how strongly a prose document matches recurring AI-output tells. It is not an authorship detector and must not be reported as proof that a human or model wrote the text. It is an editing triage score for deciding how much cleanup is needed.
 
-The required components are:
-
-1. Banned word density
-2. Structural pattern violations
-3. Rhythm monotony
-4. Meta commentary density
-5. Markdown overuse
+The required components are banned word density, structural pattern violations,
+rhythm monotony, meta commentary density, and markdown overuse.
 
 ## Preprocessing
 
@@ -75,13 +70,9 @@ AI_SLOP_SCORE = round(100 * (
 ))
 ```
 
-Where:
-
-- `BWD` = banned word density subscore
-- `SPV` = structural pattern violation subscore
-- `RHY` = rhythm monotony subscore
-- `META` = meta commentary density subscore
-- `MD` = markdown overuse subscore
+In the formula, `BWD` is the banned word density subscore, `SPV` is structural
+pattern violation, `RHY` is rhythm monotony, `META` is meta commentary density,
+and `MD` is markdown overuse.
 
 Round only once, at the final score. Component values should be stored to 4 decimal places for repeatable reports.
 
@@ -99,19 +90,19 @@ BWD = clip01(banned_density / 16)
 
 Thresholds:
 
-- `0` hits: clean
-- `>0` and `<2` weighted hits per 1,000 words: trace signal
-- `2..4.99`: light signal
-- `5..7.99`: moderate signal
-- `8..15.99`: high signal
-- `>=16`: severe signal, `BWD = 1.0`
+| Weighted hits per 1,000 words | BWD signal |
+| ---: | --- |
+| `0` | clean |
+| `>0` and `<2` | trace |
+| `2..4.99` | light |
+| `5..7.99` | moderate |
+| `8..15.99` | high |
+| `>=16` | severe, `BWD = 1.0` |
 
-Implementation notes:
-
-- Match whole words for single-word entries.
-- Match banned phrases case-insensitively after normalizing internal whitespace.
-- Do not count a single-word hit inside an already-counted banned phrase span.
-- Report replacement suggestions from `references/banned-words.md` when available.
+Implementation notes: match whole words for single-word entries, match banned
+phrases case-insensitively after normalizing internal whitespace, do not count a
+single-word hit inside an already-counted banned phrase span, and report
+replacement suggestions from `references/banned-words.md` when available.
 
 ### 2. Structural pattern violations (`SPV`, weight 25%)
 
@@ -143,17 +134,22 @@ SPV = clip01(structural_density / 10)
 
 Thresholds:
 
-- `<1` weighted hit per 1,000 words: clean/trace
-- `1..2.99`: light
-- `3..4.99`: moderate
-- `5..9.99`: high
-- `>=10`: severe, `SPV = 1.0`
+| Weighted structural hits per 1,000 words | SPV signal |
+| ---: | --- |
+| `<1` | clean/trace |
+| `1..2.99` | light |
+| `3..4.99` | moderate |
+| `5..9.99` | high |
+| `>=10` | severe, `SPV = 1.0` |
 
-Implementation notes:
-
-- A sentence-template streak starts at 3 consecutive sentences with the same normalized skeleton. A practical skeleton is the sequence of coarse token classes for the first 8 tokens: pronoun, noun, verb, adjective, adverb, determiner, preposition, conjunction, number, other.
-- A connector group is repeated when the same paragraph opener appears 3 or more times in one document.
-- Avoid double-counting: if a phrase is counted as meta commentary and structural progress announcement, keep both component findings but link them to the same source span.
+Implementation notes: a sentence-template streak starts at 3 consecutive
+sentences with the same normalized skeleton. A practical skeleton is the
+sequence of coarse token classes for the first 8 tokens: pronoun, noun, verb,
+adjective, adverb, determiner, preposition, conjunction, number, other. A
+connector group is repeated when the same paragraph opener appears 3 or more
+times in one document. Avoid double-counting: if a phrase is counted as meta
+commentary and structural progress announcement, keep both component findings
+but link them to the same source span.
 
 ### 3. Rhythm monotony (`RHY`, weight 20%)
 
@@ -190,35 +186,29 @@ RHY = (0.50 * cv_penalty) +
 
 Thresholds:
 
-- `cv >= 0.55`: sentence lengths are varied enough; no CV penalty
-- `cv ~= 0.375`: moderate CV penalty
-- `cv <= 0.20`: severe CV penalty
-- opener or ending repeat rate `<=15%`: no penalty
-- opener or ending repeat rate `>=40%`: severe penalty
-- max same-template streak `<=2`: no streak penalty
-- max same-template streak `>=6`: severe streak penalty
+| Metric | Interpretation |
+| --- | --- |
+| `cv >= 0.55` | sentence lengths are varied enough; no CV penalty |
+| `cv ~= 0.375` | moderate CV penalty |
+| `cv <= 0.20` | severe CV penalty |
+| opener or ending repeat rate `<=15%` | no penalty |
+| opener or ending repeat rate `>=40%` | severe penalty |
+| max same-template streak `<=2` | no streak penalty |
+| max same-template streak `>=6` | severe streak penalty |
 
-Implementation notes:
-
-- Content words exclude common function words: `a`, `an`, `the`, `of`, `to`, `in`, `for`, `with`, `and`, `or`, `but`, `is`, `are`, `was`, `were`.
-- Repeated endings should use the last two content words when available; otherwise use the final word.
-- Rhythm findings are document-level findings. They may not map to a single span.
+Implementation notes: content words exclude common function words such as `a`,
+`an`, `the`, `of`, `to`, `in`, `for`, `with`, `and`, `or`, `but`, `is`, `are`,
+`was`, and `were`. Repeated endings should use the last two content words when
+available; otherwise use the final word. Rhythm findings are document-level
+findings and may not map to a single span.
 
 ### 4. Meta commentary density (`META`, weight 15%)
 
 Meta commentary tells the reader what the text is about to do instead of doing it.
 
-Canonical examples include:
-
-- `In this section...`
-- `Let's dive in`
-- `Let's explore`
-- `Let's unpack this`
-- `Here's what you need to know`
-- `The key takeaway here is`
-- `To summarize`
-- `In conclusion`
-- `It is important to note`
+Canonical examples include section roadmaps, canned exploration openers,
+teaser lines, explicit takeaway framing, summary lead-ins, conclusion formulas,
+and importance notes.
 
 Formula:
 
@@ -229,18 +219,21 @@ META = clip01(meta_density / 6)
 
 Thresholds:
 
-- `0` hits: clean
-- `<1` hit per 1,000 words: trace
-- `1..1.99`: light
-- `2..3.32`: moderate
-- `3.33..5.99`: high; this matches the existing red flag of more than 1 hit per 300 words
-- `>=6`: severe, `META = 1.0`
+| Meta hits per 1,000 words | META signal |
+| ---: | --- |
+| `0` | clean |
+| `<1` | trace |
+| `1..1.99` | light |
+| `2..3.32` | moderate |
+| `3.33..5.99` | high; this matches the existing red flag of more than 1 hit per 300 words |
+| `>=6` | severe, `META = 1.0` |
 
-Implementation notes:
-
-- Keep a canonical regular-expression list in code, backed by `references/banned-patterns.md`.
-- Do not count useful navigation once at the very top of long technical docs unless the phrase appears again later. Mark this exemption in the finding record as `allowed_roadmap = true`.
-- Count repeated end-of-section summaries as both meta commentary and structural repetition when both detectors match.
+Implementation notes: keep a canonical regular-expression list in code, backed
+by `references/banned-patterns.md`. Do not count useful navigation once at the
+very top of long technical docs unless the phrase appears again later; mark this
+exemption in the finding record as `allowed_roadmap = true`. Count repeated
+end-of-section summaries as both meta commentary and structural repetition when
+both detectors match.
 
 ### 5. Markdown overuse (`MD`, weight 15%)
 
@@ -252,9 +245,13 @@ Line and span metrics:
 bullet_ratio = bullet_or_numbered_list_lines / L
 heading_ratio = markdown_heading_lines / L
 table_ratio = markdown_table_lines / L
-emphasis_density = 1000 * (
-    bold_spans + italic_spans + inline_code_spans + blockquote_lines +
-    horizontal_rule_lines + em_dash_count
+emphasis_density = 1000 * sum(
+    bold_spans,
+    italic_spans,
+    inline_code_spans,
+    blockquote_lines,
+    horizontal_rule_lines,
+    em_dash_count
 ) / W
 ```
 
@@ -274,20 +271,22 @@ MD = (0.40 * bullet_penalty) +
 
 Thresholds:
 
-- bullet ratio `<=12%`: no bullet penalty
-- bullet ratio `>=40%`: severe bullet penalty
-- heading ratio `<=8%`: no heading penalty
-- heading ratio `>=25%`: severe heading penalty
-- table ratio `>=20%`: severe table penalty
-- emphasis density `<=3` spans per 1,000 words: no emphasis penalty
-- emphasis density `>=20` spans per 1,000 words: severe emphasis penalty
+| Metric | Interpretation |
+| --- | --- |
+| bullet ratio `<=12%` | no bullet penalty |
+| bullet ratio `>=40%` | severe bullet penalty |
+| heading ratio `<=8%` | no heading penalty |
+| heading ratio `>=25%` | severe heading penalty |
+| table ratio `>=20%` | severe table penalty |
+| emphasis density `<=3` spans per 1,000 words | no emphasis penalty |
+| emphasis density `>=20` spans per 1,000 words | severe emphasis penalty |
 
-Implementation notes:
-
-- Detect bullet lines that start with `-`, `*`, `+`, checkbox markers, or ordered-list markers like `1.`.
-- A markdown table line contains at least two pipe characters or is a separator row like `| --- | --- |`.
-- Do not include fenced code block lines in `L`.
-- Inline code spans count toward emphasis density because excessive inline code can produce the same chopped-up feel as bold overuse.
+Implementation notes: detect bullet lines that start with `-`, `*`, `+`,
+checkbox markers, or ordered-list markers like `1.`. A markdown table line
+contains at least two pipe characters or is a separator row like
+`| --- | --- |`. Do not include fenced code block lines in `L`. Inline code
+spans count toward emphasis density because excessive inline code can produce
+the same chopped-up feel as bold overuse.
 
 ## Score bands and actions
 
@@ -353,8 +352,8 @@ A scorer should emit structured data before any prose report:
       "line": 8,
       "category": "banned_word",
       "severity": "high",
-      "text": "delve into",
-      "suggested_fix": "look at",
+      "text": "wordy phrase",
+      "suggested_fix": "plain phrase",
       "component": "banned_word_density"
     }
   ]
@@ -385,11 +384,13 @@ Band: `Noticeable`; run a targeted rewrite pass.
 
 ## Calibration rules
 
-- The first implementation should use these constants exactly.
-- Any later calibration must version the spec and include before/after score distributions on a fixed fixture set.
-- Add fixtures for short text, long essay prose, technical docs, release notes, and code-heavy docs.
-- Do not tune thresholds against a single author's style.
-- Keep the score deterministic. If an LLM reviewer is added later, store it as a separate `llm_naturalness_score`, not as part of this 0-100 score.
+The first implementation should use these constants exactly. Any later
+calibration must version the spec and include before/after score distributions
+on a fixed fixture set. Add fixtures for short text, long essay prose,
+technical docs, release notes, and code-heavy docs. Do not tune thresholds
+against a single author's style. Keep the score deterministic; if an LLM
+reviewer is added later, store it as a separate `llm_naturalness_score`, not as
+part of this 0-100 score.
 
 ## Acceptance criteria for implementation
 

@@ -6,41 +6,36 @@ Printable one-pager for manual review.
 
 | Lens | Question to ask | Quick fix |
 |------|-----------------|-----------|
-| **H**onest human flaws | Is the prose too polished? Any honest hesitation or real-world caveat? | Add one "honestly" or "to be fair" if genre allows. |
-| **U**npredictable structure | Do sections all follow the same template? | Vary paragraph length and where examples land. |
-| **M**emorable specifics | Is there a concrete date, number, or scene? | Insert one specific detail the source supports. |
-| **A**uthentic perspective | Does the writer have a visible point of view? | Add "In my experience" or a clear stance sentence. |
-| **N**atural flow | Do transitions feel conversational or robotic? | Replace templated connectors with plain speech. |
+| Honest human flaws | Is the prose too polished? Any honest hesitation or real-world caveat? | Add one "honestly" or "to be fair" if genre allows. |
+| Unpredictable structure | Do sections all follow the same template? | Vary paragraph length and where examples land. |
+| Memorable specifics | Is there a concrete date, number, or scene? | Insert one specific detail the source supports. |
+| Authentic perspective | Does the writer have a visible point of view? | Add "In my experience" or a clear stance sentence. |
+| Natural flow | Do transitions feel conversational or robotic? | Replace templated connectors with plain speech. |
 
 ## 20-Point Speed Check
 
-**Structure**
-- [ ] No "A is not X, it is Y" sentences
-- [ ] No identical template repeated 3+ times
-- [ ] No "First / Second / Third" spam
-- [ ] No tables or diagrams
-- [ ] No "In this section we will..."
-- [ ] No end-of-section summary that repeats body text
-- [ ] Sections vary in structure
-- [ ] Bullets sparse; ≤4 items in prose
-
-**Expression**
-- [ ] At least one concrete example or scene
-- [ ] Tone is not stiff or bureaucratic
-- [ ] A clear opinion or nuance appears
-- [ ] Banned words (delve, pivotal, landscape, etc.) are absent
-- [ ] "You" is not lecturing
-
-**Sentence level**
-- [ ] Sentence lengths vary
-- [ ] Endings are mixed (statements, fragments, questions)
-- [ ] Successive paragraphs start differently
-- [ ] "It is ~ that..." is not repeated
-- [ ] "Because of this" is not overused
-
-**Overall**
-- [ ] Code explanations outside blocks are minimal
-- [ ] Reader distance feels natural
+| Area | Check |
+|------|-------|
+| Structure | No "A is not X, it is Y" sentences. |
+| Structure | No identical template repeated 3+ times. |
+| Structure | No "First / Second / Third" spam. |
+| Structure | No tables or diagrams unless the genre needs them. |
+| Structure | No "In this section we will..." framing. |
+| Structure | No end-of-section summary that repeats body text. |
+| Structure | Sections vary in structure. |
+| Structure | Bullets are sparse; ≤4 items move into prose. |
+| Expression | At least one concrete example or scene. |
+| Expression | Tone is not stiff or bureaucratic. |
+| Expression | A clear opinion or nuance appears. |
+| Expression | Banned-word list entries are absent. |
+| Expression | "You" is not lecturing. |
+| Sentence level | Sentence lengths vary. |
+| Sentence level | Endings are mixed: statements, fragments, questions. |
+| Sentence level | Successive paragraphs start differently. |
+| Sentence level | "It is ~ that..." is not repeated. |
+| Sentence level | "Because of this" is not overused. |
+| Overall | Code explanations outside blocks are minimal. |
+| Overall | Reader distance feels natural. |
 
 ## Red Flags (stop and rewrite)
 

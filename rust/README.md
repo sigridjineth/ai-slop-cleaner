@@ -4,12 +4,12 @@ A fast, multilingual CLI tool that detects AI-generated text patterns ("AI slop"
 
 ## Features
 
-- **70 regex patterns** covering structural, lexical, and stylistic AI slop signals
-- **93 banned words** with suggested replacements (English + Korean)
-- **Multilingual by design**: Patterns defined in markdown, not hardcoded
-- **Multiple output formats**: Human-readable, JSON, Markdown report
-- **Fast**: Rust-native, processes documents in milliseconds
-- **OMX-ready**: JSON output integrates with agent pipelines
+The CLI ships with 70 regex patterns for structural, lexical, and stylistic AI
+slop signals, plus 93 banned words with suggested replacements for English and
+Korean. Patterns are defined in markdown rather than hardcoded. Output formats
+include human-readable text, JSON, and a markdown report. The Rust binary
+processes documents in milliseconds, and its JSON output integrates with agent
+pipelines.
 
 ## Installation
 
@@ -18,7 +18,7 @@ A fast, multilingual CLI tool that detects AI-generated text patterns ("AI slop"
 cd rust
 cargo build --release
 
-# Binary will be at:
+# Binary path is
 # target/release/ai-slop-cleaner
 ```
 
@@ -43,10 +43,12 @@ echo "your text here" | ai-slop-cleaner stdin
 
 ## Score Interpretation
 
-- **0-30**: Clean, likely human-written
-- **30-60**: Some AI patterns detected, light editing recommended
-- **60-80**: Noticeable AI slop, significant revision needed
-- **80-100**: Heavy AI slop, full rewrite recommended
+| Range | Meaning |
+|-------|---------|
+| `0-30` | Clean, likely human-written |
+| `30-60` | Some AI patterns detected, light editing recommended |
+| `60-80` | Noticeable AI slop, significant revision needed |
+| `80-100` | Heavy AI slop, full rewrite recommended |
 
 ## Pattern Categories
 

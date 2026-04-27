@@ -7,11 +7,11 @@ mod pattern_loader;
 mod scorer;
 
 use pattern_loader::Ruleset;
-use scorer::Scorer;
+use scorer::{MatchResult, Scorer};
 
 #[derive(Parser, Debug)]
 #[command(name = "ai-slop-cleaner")]
-#[command(about = "Detect and score AI slop in text documents")]
+#[command(about = "Detect structural AI slop patterns in text documents")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -20,27 +20,31 @@ struct Cli {
     #[arg(short, long, default_value = "rules")]
     rules_dir: PathBuf,
 
-    /// Language filter: en, ko, auto, or all (default: auto).
-    /// 'auto' detects based on text content. 'en' skips ko_* patterns.
-    /// 'ko' skips English-only patterns. 'all' applies everything.
+    /// Language hint kept for CLI compatibility. The Rust matcher only applies
+    /// universal structural patterns; language-specific judgment belongs to agents.
     #[arg(short, long, default_value = "auto")]
     lang: String,
 }
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Score a single file for AI slop
+    /// Analyze a single file and output raw structural matches as JSON
+    Analyze {
+        /// Path to the text file to analyze
+        file: PathBuf,
+    },
+    /// Deprecated: use `analyze`; no score is computed
     Score {
         /// Path to the text file to analyze
         file: PathBuf,
 
-        /// Output format: text, json, or markdown
+        /// Output format: text, json, or markdown. JSON is a raw match array.
         #[arg(short, long, default_value = "text")]
         format: String,
     },
-    /// Score text from stdin
+    /// Analyze text from stdin
     Stdin {
-        /// Output format: text, json, or markdown
+        /// Output format: text, json, or markdown. JSON is a raw match array.
         #[arg(short, long, default_value = "text")]
         format: String,
     },
@@ -55,16 +59,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let scorer = Scorer::new(ruleset);
 
     match cli.command {
-        Commands::Score { file, format } => {
+        Commands::Analyze { file } => {
             let content = fs::read_to_string(&file)?;
-            let result = scorer.score(&content, &cli.lang);
-            print_result(&result, &format)?;
+            let matches = scorer.analyze(&content, &cli.lang);
+            print_matches_json(&matches)?;
+        }
+        Commands::Score { file, format } => {
+            eprintln!(
+                "Warning: 'score' is deprecated and no longer computes an overall score. Use 'analyze' for raw structural matches."
+            );
+            let content = fs::read_to_string(&file)?;
+            let matches = scorer.analyze(&content, &cli.lang);
+            print_matches(&matches, &format)?;
         }
         Commands::Stdin { format } => {
             let mut content = String::new();
             std::io::stdin().read_to_string(&mut content)?;
-            let result = scorer.score(&content, &cli.lang);
-            print_result(&result, &format)?;
+            let matches = scorer.analyze(&content, &cli.lang);
+            print_matches(&matches, &format)?;
         }
         Commands::Rules => {
             println!("Loaded {} banned patterns", scorer.ruleset().patterns.len());
@@ -77,8 +89,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Banned Patterns:");
             for p in &scorer.ruleset().patterns {
                 println!(
-                    "  - {} (scope: {}, severity: {}, weight: {})",
-                    p.name, p.lang_scope, p.severity, p.weight
+                    "  - {} (scope: {}, severity: {}, weight: {}, description: {})",
+                    p.name, p.lang_scope, p.severity, p.weight, p.description
                 );
             }
             println!();
@@ -108,51 +120,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn print_result(
-    result: &scorer::ScoreResult,
-    format: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn print_matches_json(matches: &[MatchResult]) -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::to_string_pretty(matches)?;
+    println!("{}", json);
+    Ok(())
+}
+
+fn print_matches(matches: &[MatchResult], format: &str) -> Result<(), Box<dyn std::error::Error>> {
     match format {
         "json" => {
-            let json = serde_json::to_string_pretty(result)?;
-            println!("{}", json);
+            print_matches_json(matches)?;
         }
         "markdown" => {
-            println!("# AI Slop Score Report\n");
-            println!("**Overall Score:** {:.2}/100\n", result.overall_score);
-            println!("## Matches\n");
-            for m in &result.matches {
+            println!("# AI Slop Structural Match Report\n");
+            println!("Matches found: {}\n", matches.len());
+            for m in matches {
                 println!(
-                    "- **{}** (severity: {}, weight: {:.1})\n  - {}\n  - Line: {}\n",
-                    m.pattern_name, m.severity, m.weight, m.description, m.line_number
+                    "- **{}** (severity: {}, weight: {:.1})\n  - Line {}: {}\n",
+                    m.pattern_name, m.severity, m.weight, m.line_number, m.matched_text
                 );
             }
         }
         _ => {
-            println!("AI Slop Score: {:.2}/100", result.overall_score);
-            println!(
-                "Matches found: {} (patterns: {}, words: {})",
-                result.matches.len() + result.word_matches.len(),
-                result.matches.len(),
-                result.word_matches.len()
-            );
-            for m in &result.matches {
+            println!("Structural matches found: {}", matches.len());
+            for m in matches {
                 println!(
                     "  [{}] {} (weight: {:.1}) - Line {}: {}",
                     m.severity, m.pattern_name, m.weight, m.line_number, m.matched_text
                 );
             }
-            for w in &result.word_matches {
-                let repl = match &w.replacement {
-                    Some(r) => format!(" -> {}", r),
-                    None => String::new(),
-                };
-                println!(
-                    "  [word] \"{}\"{}  (weight: {:.1}) - Line {}: {}",
-                    w.word, repl, w.weight, w.line_number, w.matched_text
-                );
-            }
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn parses_analyze_subcommand() {
+        let cli = Cli::try_parse_from(["ai-slop-cleaner", "analyze", "document.md"])
+            .expect("analyze subcommand should parse");
+
+        match cli.command {
+            Commands::Analyze { file } => assert_eq!(file, PathBuf::from("document.md")),
+            other => panic!("expected analyze command, got {other:?}"),
+        }
+    }
 }

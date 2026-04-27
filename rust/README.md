@@ -1,15 +1,17 @@
 # AI-Slop-Cleaner
 
-A fast, multilingual CLI tool that detects AI-generated text patterns ("AI slop") in documents. Built in Rust with support for English and Korean, extensible to any language via markdown-based pattern definitions.
+A fast CLI pattern-matching engine for AI-generated text artifacts ("AI slop").
+The Rust binary is intentionally dumb: it emits raw structural matches and
+does not compute a holistic score. Agent workflows consume the full text plus
+these matches and make the semantic judgment.
 
 ## Features
 
-The CLI ships with 70 regex patterns for structural, lexical, and stylistic AI
-slop signals, plus 93 banned words with suggested replacements for English and
-Korean. Patterns are defined in markdown rather than hardcoded. Output formats
-include human-readable text, JSON, and a markdown report. The Rust binary
-processes documents in milliseconds, and its JSON output integrates with agent
-pipelines.
+The CLI ships with six universal regex patterns for structural AI slop signals.
+Patterns are defined in markdown rather than hardcoded. The `analyze` command
+outputs a clean JSON array of match objects for agent pipelines. Language- and
+semantic-level judgment lives in `rules/patterns-agent.md` and is performed by
+LLM agents, not by the Rust binary.
 
 ## Installation
 
@@ -25,82 +27,74 @@ cargo build --release
 ## Usage
 
 ```bash
-# Score a document
-ai-slop-cleaner score document.md
+# Analyze a document and emit raw structural matches as JSON
+ai-slop-cleaner analyze document.md
 
-# JSON output for programmatic use
+# Deprecated compatibility path: delegates to analyze and emits no score
 ai-slop-cleaner score document.md --format json
 
-# Markdown report
+# Human-readable report from the compatibility command
 ai-slop-cleaner score document.md --format markdown
 
 # List all loaded rules
 ai-slop-cleaner rules
 
-# Score from stdin
-echo "your text here" | ai-slop-cleaner stdin
+# Analyze from stdin
+echo "your text here" | ai-slop-cleaner stdin --format json
 ```
 
-## Score Interpretation
+## Architecture
 
-| Range | Meaning |
-|-------|---------|
-| `0-30` | Clean, likely human-written |
-| `30-60` | Some AI patterns detected, light editing recommended |
-| `60-80` | Noticeable AI slop, significant revision needed |
-| `80-100` | Heavy AI slop, full rewrite recommended |
+The Rust binary only does structural regex matching:
 
-## Pattern Categories
+1. Load universal structural patterns from `rules/banned-patterns.md`.
+2. Match those patterns against the input text.
+3. Emit raw matches: pattern name, severity, weight, matched text, and line
+   number.
 
-| Category | Description | Examples |
-|----------|-------------|----------|
-| A | Translationese / awkward phrasing | "~에 있어서", "~을 기반으로" |
-| B | English term abuse | Parenthesized English, raw English terms |
-| C | Structural patterns | Mechanical enumeration, bullet abuse, emoji headings |
-| D | Cliché formulas | "In conclusion", "It is important to note" |
-| E | Sentence uniformity | Same-length sentences, repeated endings |
-| F | Modifier abuse | Degree adverbs, suffix chains, double modifiers |
-| G | Hedging | "~할 수 있습니다", "~것입니다" overuse |
-| H | Connector patterns | Predictable transitions, meta entries |
-| I | Korean-specific | Dependent noun abuse, "geotida" overuse |
-| J | Formatting abuse | Bold overuse, quote emphasis, em dashes |
+It does **not** calculate an overall score, count banned words as findings, or
+judge document quality. Agent workflows should read the source document plus
+the JSON matches and assign any holistic score.
+
+## Universal Structural Patterns
+
+Current Rust-matched patterns include:
+
+- Bullet blocks
+- Emoji decoration
+- Colon subtitle headings
+- Bold emphasis decoration
+- Em dashes
+- Plus-sign conjunctions
 
 ## Adding New Patterns
 
 Edit `rules/banned-patterns.md` and add entries to the markdown tables:
 
 ```markdown
-| Pattern Name | Regex | Severity | Weight | Description |
-|-------------|-------|----------|--------|-------------|
-| my_new_pattern | `regex here` | medium | 1.0 | Description |
+| Name | Lang Scope | Severity | Weight | Regex | Description |
+|------|------------|----------|--------|-------|-------------|
+| my_new_pattern | universal | medium | 1.0 | `regex here` | Description |
 ```
 
-For word lists, add to `rules/banned-words.md`:
-
-```markdown
-| Word | Replacement | Severity | Weight | Language |
-|------|-------------|----------|--------|----------|
-| badword | goodword | medium | 1.0 | en |
-```
+Keep language-specific, semantic, and judgment-oriented patterns in
+`rules/patterns-agent.md` for LLM agents. The Rust analyzer should stay a raw
+structural matcher.
 
 ## Integration with OMX
 
 The JSON output is designed for agent pipelines:
 
 ```json
-{
-  "overall_score": 45.5,
-  "max_possible_score": 100.0,
-  "summary": {
-    "total_patterns_matched": 12,
-    "total_words_matched": 3,
-    "high_severity_count": 2,
-    "medium_severity_count": 8,
-    "low_severity_count": 5
-  },
-  "matches": [...],
-  "word_matches": [...]
-}
+[
+  {
+    "pattern_name": "emoji_decoration",
+    "severity": "high",
+    "weight": 2.0,
+    "matched_text": "🚀",
+    "line_number": 12
+  }
+]
 ```
 
 ## License

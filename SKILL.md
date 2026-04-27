@@ -85,6 +85,64 @@ Edit the markdown files in `rules/`. The binary reloads them on every run. For a
 
 No recompilation needed for rule changes.
 
+## Meta: Auditing Your Own README
+
+A project that detects AI slop should not ship a slop-heavy README. Use the binary on itself:
+
+```bash
+cd ~/.hermes/skills/ai-slop-cleaner/rust
+./target/release/ai-slop-cleaner --rules-dir rules/ score ../../README.md --format json
+```
+
+Iterative cleanup (ralph-style, even without OMX):
+1. Fix `plus_conjunction` matches first — replace "A + B" with "A and B" or "A alongside B".
+2. Fix `bullet_block` — convert 4+ consecutive bullets into a table or prose.
+3. Remove unnecessary `bold_emphasis` inside table cells where structure already signals hierarchy.
+4. Keep em dashes if they are part of the target style (e.g., Ouroboros-style docs).
+
+Target for technical docs: **≤ 30** (ouroboros README itself scores ~41, so anything below that is already cleaner than the reference). Target for pure prose: **< 15**.
+
+## One-Command Installer (Rust projects)
+
+A `scripts/install.sh` that clones, builds, and wraps the binary is the Rust equivalent of `pip install`. Pattern:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+REPO_URL="https://github.com/sigridjineth/ai-slop-cleaner"
+INSTALL_DIR="${HOME}/.local/share/ai-slop-cleaner"
+BIN_DIR="${HOME}/.local/bin"
+
+# 1. Ensure cargo
+if ! command -v cargo &>/dev/null; then
+  curl -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+  source "${HOME}/.cargo/env"
+fi
+
+# 2. Clone or update
+if [ -d "${INSTALL_DIR}/.git" ]; then
+  git -C "${INSTALL_DIR}" pull --quiet
+else
+  git clone --depth 1 --quiet "${REPO_URL}" "${INSTALL_DIR}"
+fi
+
+# 3. Build
+BINARY="${INSTALL_DIR}/rust/target/release/ai-slop-cleaner"
+if [ ! -x "${BINARY}" ]; then
+  (cd "${INSTALL_DIR}/rust" && cargo build --release)
+fi
+
+# 4. Wrapper with default rules-dir
+mkdir -p "${BIN_DIR}"
+cat > "${BIN_DIR}/ai-slop-cleaner" <<EOF
+#!/bin/bash
+exec "${BINARY}" --rules-dir "${INSTALL_DIR}/rust/rules" "\$@"
+EOF
+chmod +x "${BIN_DIR}/ai-slop-cleaner"
+```
+
+Usage for end users: `curl -fsSL .../install.sh | bash`
+
 ## OMX Delegation
 
 `scripts/omx-delegate.sh` orchestrates iterative cleanup:
@@ -102,3 +160,12 @@ examples; self-referential documents are expected to score high. Regex cells in
 `banned-patterns.md` must stay inside backticks because removing backticks breaks
 alternation parsing. `banned_words.json` is a legacy artifact from the Go/Python
 era; the Rust binary reads `banned-words.md` instead.
+
+Do not chase a score of 0 on technical READMEs. Tables, navigation links, and
+styled headers are structural necessities. The ouroboros reference README scores
+~41/100. A well-structured technical doc in the 12–30 range is clean enough to
+ship. Pure prose (essays, emails, posts) should aim for < 15.
+
+When adding new agent-mode patterns, watch for the `example_list_summarize` trap:
+"For example:" + bullet list + "That is," / "즉," is itself a detectable slop
+cadence. Describe the pattern in plain prose without demonstrating it.

@@ -1,56 +1,24 @@
-use regex::Regex;
-
 use crate::pattern_loader::Ruleset;
 
-/// A single match found in the text.
+/// A single structural pattern match found in the text.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct MatchResult {
     pub pattern_name: String,
     pub severity: String,
     pub weight: f64,
-    pub description: String,
     pub matched_text: String,
     pub line_number: usize,
-    pub column_start: usize,
-    pub column_end: usize,
-}
-
-/// The final scoring result.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ScoreResult {
-    pub overall_score: f64,
-    pub matches: Vec<MatchResult>,
-    pub word_matches: Vec<WordMatchResult>,
-    pub summary: ScoreSummary,
-    pub detected_lang: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct WordMatchResult {
-    pub word: String,
-    pub replacement: Option<String>,
-    pub weight: f64,
-    pub line_number: usize,
-    pub matched_text: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ScoreSummary {
-    pub total_patterns_matched: usize,
-    pub total_words_matched: usize,
-    pub high_severity_count: usize,
-    pub medium_severity_count: usize,
-    pub low_severity_count: usize,
 }
 
 pub struct Scorer {
     ruleset: Ruleset,
 }
 
-// The Rust binary only applies universal (language-agnostic) patterns.
-// Language-specific pattern evaluation is delegated to an LLM agent
-// via patterns-agent.md. The --lang flag is accepted for CLI compatibility
-// but has no effect — all loaded patterns are universal scope.
+// The Rust binary only applies universal (language-agnostic) structural
+// patterns. It intentionally does not score, classify, or make holistic
+// judgments; that work is delegated to an LLM agent that can read the full
+// text plus these raw structural matches. The --lang flag is accepted for CLI
+// compatibility but has no effect — all loaded patterns are universal scope.
 impl Scorer {
     pub fn new(ruleset: Ruleset) -> Self {
         Scorer { ruleset }
@@ -60,9 +28,8 @@ impl Scorer {
         &self.ruleset
     }
 
-    pub fn score(&self, text: &str, _lang: &str) -> ScoreResult {
+    pub fn analyze(&self, text: &str, _lang: &str) -> Vec<MatchResult> {
         let mut matches = Vec::new();
-        let mut word_matches = Vec::new();
         let lines: Vec<&str> = text.lines().collect();
 
         // Build byte-offset to line-number lookup for multi-line pattern matching
@@ -82,7 +49,7 @@ impl Scorer {
             }
         };
 
-        // Score structural patterns (all universal — no language filtering needed)
+        // Match structural patterns (all universal — no language filtering needed)
         for pattern in &self.ruleset.patterns {
             let is_multiline =
                 pattern.regex.as_str().contains("(?m)") || pattern.regex.as_str().contains("\n");
@@ -95,11 +62,8 @@ impl Scorer {
                         pattern_name: pattern.name.clone(),
                         severity: pattern.severity.clone(),
                         weight: pattern.weight,
-                        description: pattern.description.clone(),
                         matched_text: first_line.trim().to_string(),
                         line_number: line_num,
-                        column_start: mat.start(),
-                        column_end: mat.end(),
                     });
                 }
             } else {
@@ -109,57 +73,15 @@ impl Scorer {
                             pattern_name: pattern.name.clone(),
                             severity: pattern.severity.clone(),
                             weight: pattern.weight,
-                            description: pattern.description.clone(),
                             matched_text: mat.as_str().to_string(),
                             line_number: line_idx + 1,
-                            column_start: mat.start(),
-                            column_end: mat.end(),
                         });
                     }
                 }
             }
         }
 
-        // Score banned words (all words checked — no language filtering)
-        for word_entry in &self.ruleset.words {
-            let word_regex = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(&word_entry.word)))
-                .unwrap_or_else(|_| Regex::new(&regex::escape(&word_entry.word)).unwrap());
-
-            for (line_idx, line) in lines.iter().enumerate() {
-                for mat in word_regex.find_iter(line) {
-                    word_matches.push(WordMatchResult {
-                        word: word_entry.word.clone(),
-                        replacement: word_entry.replacement.clone(),
-                        weight: word_entry.weight,
-                        line_number: line_idx + 1,
-                        matched_text: mat.as_str().to_string(),
-                    });
-                }
-            }
-        }
-
-        // Calculate overall score (0-100, higher = more slop)
-        let pattern_score: f64 = matches.iter().map(|m| m.weight).sum();
-        let word_score: f64 = word_matches.iter().map(|m| m.weight).sum();
-        let total_score = (pattern_score + word_score).min(100.0);
-
-        let high_count = matches.iter().filter(|m| m.severity == "high").count();
-        let medium_count = matches.iter().filter(|m| m.severity == "medium").count();
-        let low_count = matches.iter().filter(|m| m.severity == "low").count();
-
-        ScoreResult {
-            overall_score: total_score,
-            matches,
-            word_matches: word_matches.clone(),
-            summary: ScoreSummary {
-                total_patterns_matched: high_count + medium_count + low_count,
-                total_words_matched: word_matches.len(),
-                high_severity_count: high_count,
-                medium_severity_count: medium_count,
-                low_severity_count: low_count,
-            },
-            detected_lang: "universal".to_string(),
-        }
+        matches
     }
 }
 
@@ -167,6 +89,7 @@ impl Scorer {
 mod tests {
     use super::*;
     use crate::pattern_loader::Ruleset;
+    use regex::Regex;
 
     fn test_ruleset() -> Ruleset {
         Ruleset {
@@ -187,21 +110,29 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_scoring() {
+    fn test_basic_analysis_matches_structural_patterns_only() {
         let scorer = Scorer::new(test_ruleset());
-        let result = scorer.score("This is a test with badword.", "all");
-        assert!(result.overall_score > 0.0);
-        assert_eq!(result.matches.len(), 1);
-        assert_eq!(result.word_matches.len(), 1);
+        let matches = scorer.analyze("This is a test with badword.", "all");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pattern_name, "test_pattern");
+    }
+
+    #[test]
+    fn test_banned_words_do_not_produce_matches() {
+        let scorer = Scorer::new(test_ruleset());
+        let matches = scorer.analyze("This text only contains badword.", "all");
+        assert_eq!(
+            matches.len(),
+            0,
+            "The Rust matcher should only emit structural pattern matches"
+        );
     }
 
     #[test]
     fn test_no_matches() {
         let scorer = Scorer::new(test_ruleset());
-        let result = scorer.score("This is clean text.", "all");
-        assert_eq!(result.overall_score, 0.0);
-        assert_eq!(result.matches.len(), 0);
-        assert_eq!(result.word_matches.len(), 0);
+        let matches = scorer.analyze("This is clean text.", "all");
+        assert_eq!(matches.len(), 0);
     }
 
     #[test]
@@ -223,11 +154,8 @@ mod tests {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
-        let result = scorer.score("Supports English + Korean detection.", "all");
-        let has_plus = result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name == "plus_conjunction");
+        let matches = scorer.analyze("Supports English + Korean detection.", "all");
+        let has_plus = matches.iter().any(|m| m.pattern_name == "plus_conjunction");
         assert!(has_plus, "Should detect plus conjunction pattern");
     }
 
@@ -236,12 +164,11 @@ mod tests {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
-        let result = scorer.score(
+        let matches = scorer.analyze(
             "The draft joins planning + review as if the plus sign were a conjunction.",
             "all",
         );
-        let matched = result
-            .matches
+        let matched = matches
             .iter()
             .find(|m| m.pattern_name == "plus_conjunction")
             .map(|m| m.matched_text.as_str());
@@ -258,9 +185,8 @@ mod tests {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
-        let result = scorer.score("मसौदा लेखन + समीक्षा को एक ही बंधन की तरह रखता है।", "all");
-        let matched = result
-            .matches
+        let matches = scorer.analyze("मसौदा लेखन + समीक्षा को एक ही बंधन की तरह रखता है।", "all");
+        let matched = matches
             .iter()
             .find(|m| m.pattern_name == "plus_conjunction")
             .map(|m| m.matched_text.as_str());
@@ -277,14 +203,11 @@ mod tests {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
-        let result = scorer.score(
+        let matches = scorer.analyze(
             "The expression 3+2 is arithmetic, and C++ is a language.",
             "all",
         );
-        let has_plus = result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name == "plus_conjunction");
+        let has_plus = matches.iter().any(|m| m.pattern_name == "plus_conjunction");
 
         assert!(
             !has_plus,
@@ -297,11 +220,8 @@ mod tests {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
-        let result = scorer.score("This is great! 🚀 Let's ship it! ✨", "all");
-        let has_emoji = result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name == "emoji_decoration");
+        let matches = scorer.analyze("This is great! 🚀 Let's ship it! ✨", "all");
+        let has_emoji = matches.iter().any(|m| m.pattern_name == "emoji_decoration");
         assert!(has_emoji, "Should detect emoji decoration");
     }
 
@@ -310,8 +230,8 @@ mod tests {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
-        let result = scorer.score("The tool — which is fast — handles everything.", "all");
-        let has_em_dash = result.matches.iter().any(|m| m.pattern_name == "em_dash");
+        let matches = scorer.analyze("The tool — which is fast — handles everything.", "all");
+        let has_em_dash = matches.iter().any(|m| m.pattern_name == "em_dash");
         assert!(has_em_dash, "Should detect em dash decoration");
     }
 
@@ -331,27 +251,21 @@ mod tests {
 
     #[test]
     fn test_any_language_gets_universal_patterns() {
-        // All patterns are universal — any text in any language should be scored
+        // All patterns are universal — any text in any language should be matched
         // without language-specific filtering
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
 
         // Korean text with emoji
-        let result = scorer.score("한국어 텍스트 🚀 좋습니다", "auto");
-        assert!(result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name == "emoji_decoration"));
+        let matches = scorer.analyze("한국어 텍스트 🚀 좋습니다", "auto");
+        assert!(matches.iter().any(|m| m.pattern_name == "emoji_decoration"));
 
         // Japanese text with em dash
-        let result = scorer.score("日本語のテスト — テストで���", "auto");
-        assert!(result.matches.iter().any(|m| m.pattern_name == "em_dash"));
+        let matches = scorer.analyze("日本語のテスト — テストで���", "auto");
+        assert!(matches.iter().any(|m| m.pattern_name == "em_dash"));
 
         // Chinese text with plus conjunction
-        let result = scorer.score("支持中文 + 英文检���", "auto");
-        assert!(result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name == "plus_conjunction"));
+        let matches = scorer.analyze("支持中文 + 英文检���", "auto");
+        assert!(matches.iter().any(|m| m.pattern_name == "plus_conjunction"));
     }
 }

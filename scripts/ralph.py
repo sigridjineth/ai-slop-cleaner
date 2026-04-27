@@ -11,12 +11,13 @@ matches, the full current text, and the universal categories from
 rules/patterns-agent.md, then rewrites by holistic inference in any language.
 
 Usage:
-    python3 scripts/ralph.py <input-file> [--max-rounds 3] [--target-matches 0]
+    python3 scripts/ralph.py <input-file> [--max-rounds 3] [--target-matches 0] [--force-rewrite]
 
-Environment variables:
-    OPENAI_API_KEY    - Use OpenAI API for rewrites
-    ANTHROPIC_API_KEY - Use Anthropic API for rewrites
-    AICHAT_MODEL      - Use `aichat` CLI if installed, for example "claude"
+LLM backend priority:
+    1. `claude -p` CLI if installed; reuses Claude Code authentication
+    2. `aichat` CLI when AICHAT_MODEL is set
+    3. OPENAI_API_KEY
+    4. ANTHROPIC_API_KEY
 
 If no API key or CLI is available, prompts are written to .ralph/round-N-prompt.md.
 Paste the LLM's complete rewritten text into .ralph/round-N-response.md, then
@@ -176,6 +177,17 @@ for the input text, not a partial edit.
 
 def call_llm(prompt):
     """Call an available LLM backend. Returns response text or None."""
+    if shutil.which("claude"):
+        result = subprocess.run(
+            ["claude", "-p"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return result.stdout
+        print(f"[ralph] claude -p error: {result.stderr}")
+
     if shutil.which("aichat") and os.environ.get("AICHAT_MODEL"):
         model = os.environ["AICHAT_MODEL"]
         result = subprocess.run(
@@ -284,6 +296,11 @@ def main():
         help="Stop when Rust structural match count is at or below this value",
     )
     parser.add_argument("--rules-dir", default=None, help="Path to rules directory")
+    parser.add_argument(
+        "--force-rewrite",
+        action="store_true",
+        help="Run at least one LLM rewrite even when analyze finds no structural matches",
+    )
     args = parser.parse_args()
 
     input_file = Path(args.input_file).resolve()
@@ -312,19 +329,29 @@ def main():
 
     print(f"[ralph] Binary: {binary}")
     print(f"[ralph] Rules:  {rules_dir}")
+    round_limit = max(args.max_rounds, 1) if args.force_rewrite else args.max_rounds
+
     print(f"[ralph] Target: <= {args.target_matches} structural matches | Max rounds: {args.max_rounds}")
+    if args.force_rewrite and args.max_rounds == 0:
+        print("[ralph] Force rewrite enabled: raising effective max rounds to 1")
+    elif args.force_rewrite:
+        print("[ralph] Force rewrite enabled: will run at least one LLM rewrite")
     print("[ralph] Rewrite mode: full-text LLM inference, never regex substitution")
     print("-" * 60)
 
-    for round_num in range(1, args.max_rounds + 1):
+    forced_rewrite_done = False
+    for round_num in range(1, round_limit + 1):
         before_matches = run_analyze(binary, rules_dir, current_file)
         write_analysis(ralph_dir, round_num, before_matches, "before")
         before_count = len(before_matches)
         print(f"\n[ralph] Round {round_num}: {before_count} structural matches before rewrite")
 
-        if before_count <= args.target_matches:
+        force_this_round = args.force_rewrite and not forced_rewrite_done
+        if before_count <= args.target_matches and not force_this_round:
             print("[ralph] Target reached before rewrite. Cleaning complete.")
             break
+        if before_count <= args.target_matches and force_this_round:
+            print("[ralph] Force rewrite enabled; rewriting despite target already being reached.")
 
         prompt = make_prompt(
             current_file.read_text(encoding="utf-8"),
@@ -343,6 +370,7 @@ def main():
             print("[ralph] LLM returned an empty rewrite. Exiting to avoid data loss.")
             sys.exit(1)
 
+        forced_rewrite_done = forced_rewrite_done or force_this_round
         current_file.write_text(rewritten, encoding="utf-8")
         (ralph_dir / f"round-{round_num}-rewrite.txt").write_text(rewritten, encoding="utf-8")
 

@@ -70,6 +70,10 @@ enum Commands {
         #[arg(long)]
         patterns_agent: Option<PathBuf>,
 
+        /// Run at least one LLM rewrite even when analyze finds no structural matches
+        #[arg(long)]
+        force_rewrite: bool,
+
         /// Run a final LLM quality assessment after rewriting
         #[arg(long, default_value_t = true)]
         assess: bool,
@@ -122,6 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             target_matches,
             rules_dir,
             patterns_agent,
+            force_rewrite,
             assess,
             no_assess,
         } => {
@@ -136,6 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 target_matches,
                 lang: cli.lang,
                 assess: assess && !no_assess,
+                force_rewrite,
             })?;
         }
         Commands::Assess {
@@ -260,6 +266,7 @@ mod tests {
             "custom-rules",
             "--patterns-agent",
             "custom-patterns.md",
+            "--force-rewrite",
         ])
         .expect("deslop subcommand should parse");
 
@@ -270,6 +277,7 @@ mod tests {
                 target_matches,
                 rules_dir,
                 patterns_agent,
+                force_rewrite,
                 assess,
                 no_assess,
             } => {
@@ -278,6 +286,7 @@ mod tests {
                 assert_eq!(target_matches, 1);
                 assert_eq!(rules_dir, Some(PathBuf::from("custom-rules")));
                 assert_eq!(patterns_agent, Some(PathBuf::from("custom-patterns.md")));
+                assert!(force_rewrite);
                 assert!(assess);
                 assert!(!no_assess);
             }

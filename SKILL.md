@@ -95,6 +95,7 @@ The Rust binary does not compute this score.
 
 ```bash
 python3 scripts/ralph.py <input-file> --max-rounds 3 --target-matches 0
+python3 scripts/ralph.py <input-file> --force-rewrite  # semantic-only slop
 ```
 
 Each round:
@@ -105,11 +106,15 @@ Each round:
 4. Requires a complete rewritten text, not patches or replacement rules.
 5. Re-runs `analyze` on the rewritten text.
 6. Stops when structural matches are at or below `--target-matches`, or when the
-   round limit is reached.
+   round limit is reached. With `--force-rewrite`, Ralph runs at least one LLM
+   rewrite even when structural analysis finds zero matches. Use this for
+   semantic-only slop such as translationese or connector abuse.
 
-Supported backends are `AICHAT_MODEL`, `OPENAI_API_KEY`, and `ANTHROPIC_API_KEY`.
-Without a configured backend, Ralph writes `.ralph/round-N-prompt.md` and waits
-for a complete rewrite in `.ralph/round-N-response.md`.
+Backend priority is `claude -p`, `AICHAT_MODEL`, `OPENAI_API_KEY`, then
+`ANTHROPIC_API_KEY`. The `claude -p` path reuses Claude Code authentication, so
+it works inside the skill without separate API keys. Without a configured
+backend, Ralph writes `.ralph/round-N-prompt.md` and waits for a complete rewrite
+in `.ralph/round-N-response.md`.
 
 ## OMX delegation
 

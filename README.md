@@ -90,6 +90,7 @@ intent in its own language, genre, and context?
 
 ```bash
 python3 scripts/ralph.py draft.md --max-rounds 3 --target-matches 0
+python3 scripts/ralph.py draft.md --force-rewrite  # semantic-only slop
 ```
 
 Each round does the following:
@@ -100,15 +101,19 @@ Each round does the following:
 4. Ask for a complete rewritten text, not patches or substitutions.
 5. Re-run `analyze` on the rewritten text.
 6. Stop when the structural match target is reached or the round limit is hit.
+   With `--force-rewrite`, run at least one LLM rewrite even when structural
+   analysis finds zero matches. Use this for semantic-only slop such as
+   translationese or connector abuse.
 
 The prompt explicitly warns against destructive cleanup such as removing `즉`
 from `즉흥적으로` or chopping `느낌입니다` into `다`. Connector-looking text
 inside a word is part of that word.
 
-Supported LLM paths are `AICHAT_MODEL`, `OPENAI_API_KEY`, and
-`ANTHROPIC_API_KEY`. If none are available, Ralph writes
-`.ralph/round-N-prompt.md` and waits for you to paste the complete rewrite into
-`.ralph/round-N-response.md`.
+LLM backend priority is `claude -p`, `AICHAT_MODEL`, `OPENAI_API_KEY`, then
+`ANTHROPIC_API_KEY`. The `claude -p` path reuses Claude Code authentication, so
+it works inside the skill without separate API keys. If none are available,
+Ralph writes `.ralph/round-N-prompt.md` and waits for you to paste the complete
+rewrite into `.ralph/round-N-response.md`.
 
 ## Agent prompt contract
 

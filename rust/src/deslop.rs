@@ -5,8 +5,11 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use std::env;
 use std::fs;
-use std::io::{self, Read};
-use std::path::PathBuf;
+use std::io::{self, Read, Write};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 const OPENAI_MODEL: &str = "gpt-4o-mini";
@@ -20,6 +23,7 @@ pub struct Config {
     pub target_matches: usize,
     pub lang: String,
     pub assess: bool,
+    pub force_rewrite: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -92,29 +96,44 @@ pub fn run(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     let original_text = fs::read_to_string(&config.file)?;
     let mut current_text = original_text.clone();
     let mut current_matches = scorer.analyze(&current_text, &config.lang);
+    let round_limit = if config.force_rewrite {
+        config.max_rounds.max(1)
+    } else {
+        config.max_rounds
+    };
+    let mut forced_rewrite_done = false;
 
-    if current_matches.len() > config.target_matches {
-        for round in 1..=config.max_rounds {
-            let prompt = build_prompt(&current_text, &current_matches, &agent_patterns, round)?;
-            let rewritten = request_rewrite(&prompt)?;
-
-            if rewritten.trim().is_empty() {
-                return Err("deslop LLM response was empty".into());
-            }
-
-            fs::write(&config.file, &rewritten)?;
-            current_text = rewritten;
-            current_matches = scorer.analyze(&current_text, &config.lang);
-
+    for round in 1..=round_limit {
+        let force_this_round = config.force_rewrite && !forced_rewrite_done;
+        if current_matches.len() <= config.target_matches && !force_this_round {
+            break;
+        }
+        if current_matches.len() <= config.target_matches && force_this_round {
             eprintln!(
-                "deslop round {round}/{}: {} structural matches remain",
-                config.max_rounds,
+                "deslop force-rewrite: running one LLM rewrite despite {} structural matches",
                 current_matches.len()
             );
+        }
 
-            if current_matches.len() <= config.target_matches {
-                break;
-            }
+        let prompt = build_prompt(&current_text, &current_matches, &agent_patterns, round)?;
+        let rewritten = request_rewrite(&prompt)?;
+
+        if rewritten.trim().is_empty() {
+            return Err("deslop LLM response was empty".into());
+        }
+
+        forced_rewrite_done = forced_rewrite_done || force_this_round;
+        fs::write(&config.file, &rewritten)?;
+        current_text = rewritten;
+        current_matches = scorer.analyze(&current_text, &config.lang);
+
+        eprintln!(
+            "deslop round {round}/{round_limit}: {} structural matches remain",
+            current_matches.len()
+        );
+
+        if current_matches.len() <= config.target_matches {
+            break;
         }
     }
 
@@ -223,36 +242,138 @@ Do not include markdown fences, explanations outside JSON, or rewritten text. Th
     )
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LlmBackend {
+    ClaudeCli,
+    OpenAi(String),
+    Anthropic(String),
+    Interactive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LlmTask {
+    Rewrite,
+    Assessment,
+}
+
 fn request_rewrite(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
-    if let Ok(api_key) = env::var("OPENAI_API_KEY") {
-        if !api_key.trim().is_empty() {
-            return call_openai(&api_key, prompt);
-        }
-    }
-
-    if let Ok(api_key) = env::var("ANTHROPIC_API_KEY") {
-        if !api_key.trim().is_empty() {
-            return call_anthropic(&api_key, prompt);
-        }
-    }
-
-    interactive_rewrite(prompt)
+    request_llm(prompt, LlmTask::Rewrite)
 }
 
 fn request_assessment(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
-    if let Ok(api_key) = env::var("OPENAI_API_KEY") {
-        if !api_key.trim().is_empty() {
-            return call_openai(&api_key, prompt);
-        }
+    request_llm(prompt, LlmTask::Assessment)
+}
+
+fn request_llm(prompt: &str, task: LlmTask) -> Result<String, Box<dyn std::error::Error>> {
+    match select_llm_backend() {
+        LlmBackend::ClaudeCli => call_claude_cli(prompt),
+        LlmBackend::OpenAi(api_key) => call_openai(&api_key, prompt),
+        LlmBackend::Anthropic(api_key) => call_anthropic(&api_key, prompt),
+        LlmBackend::Interactive => match task {
+            LlmTask::Rewrite => interactive_rewrite(prompt),
+            LlmTask::Assessment => interactive_assessment(prompt),
+        },
+    }
+}
+
+fn select_llm_backend() -> LlmBackend {
+    choose_llm_backend(
+        command_exists("claude"),
+        env::var("OPENAI_API_KEY").ok(),
+        env::var("ANTHROPIC_API_KEY").ok(),
+    )
+}
+
+fn choose_llm_backend(
+    claude_cli_available: bool,
+    openai_key: Option<String>,
+    anthropic_key: Option<String>,
+) -> LlmBackend {
+    if claude_cli_available {
+        return LlmBackend::ClaudeCli;
     }
 
-    if let Ok(api_key) = env::var("ANTHROPIC_API_KEY") {
-        if !api_key.trim().is_empty() {
-            return call_anthropic(&api_key, prompt);
-        }
+    if let Some(api_key) = non_empty_key(openai_key) {
+        return LlmBackend::OpenAi(api_key);
     }
 
-    interactive_assessment(prompt)
+    if let Some(api_key) = non_empty_key(anthropic_key) {
+        return LlmBackend::Anthropic(api_key);
+    }
+
+    LlmBackend::Interactive
+}
+
+fn non_empty_key(key: Option<String>) -> Option<String> {
+    key.filter(|value| !value.trim().is_empty())
+}
+
+fn command_exists(command: &str) -> bool {
+    let Some(paths) = env::var_os("PATH") else {
+        return false;
+    };
+
+    env::split_paths(&paths).any(|dir| {
+        let candidate = dir.join(command);
+        if is_executable_file(&candidate) {
+            return true;
+        }
+
+        #[cfg(windows)]
+        {
+            let candidate = dir.join(format!("{command}.exe"));
+            if is_executable_file(&candidate) {
+                return true;
+            }
+        }
+
+        false
+    })
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        path.metadata()
+            .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+fn call_claude_cli(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let mut child = Command::new("claude")
+        .arg("-p")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    {
+        let stdin = child.stdin.as_mut().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "failed to open stdin for claude -p",
+            )
+        })?;
+        stdin.write_all(prompt.as_bytes())?;
+    }
+
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("claude -p failed: {stderr}").into());
+    }
+
+    Ok(String::from_utf8(output.stdout)?)
 }
 
 fn call_openai(api_key: &str, prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -316,7 +437,7 @@ fn http_client() -> Result<Client, Box<dyn std::error::Error>> {
 fn interactive_rewrite(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
     println!("{prompt}");
     eprintln!(
-        "No OPENAI_API_KEY or ANTHROPIC_API_KEY set. Paste the complete rewritten text on stdin, then send EOF."
+        "No claude -p, OPENAI_API_KEY, or ANTHROPIC_API_KEY backend available. Paste the complete rewritten text on stdin, then send EOF."
     );
 
     let mut rewritten = String::new();
@@ -327,7 +448,7 @@ fn interactive_rewrite(prompt: &str) -> Result<String, Box<dyn std::error::Error
 fn interactive_assessment(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
     eprintln!("{prompt}");
     eprintln!(
-        "No OPENAI_API_KEY or ANTHROPIC_API_KEY set. Paste the quality assessment JSON on stdin, then send EOF."
+        "No claude -p, OPENAI_API_KEY, or ANTHROPIC_API_KEY backend available. Paste the quality assessment JSON on stdin, then send EOF."
     );
 
     let mut assessment = String::new();
@@ -404,6 +525,35 @@ mod tests {
         assert!(prompt.contains("# Categories"));
         assert!(prompt.contains("\"pattern_name\": \"sample_pattern\""));
         assert!(prompt.contains("REWRITE the entire text naturally. Do NOT regex-replace. Do NOT cut words from compound terms. Preserve meaning and grammar. Output ONLY the rewritten text."));
+    }
+
+    #[test]
+    fn llm_backend_prefers_claude_cli_before_api_keys() {
+        let backend = choose_llm_backend(
+            true,
+            Some("openai-key".to_string()),
+            Some("anthropic-key".to_string()),
+        );
+
+        assert_eq!(backend, LlmBackend::ClaudeCli);
+    }
+
+    #[test]
+    fn llm_backend_uses_openai_before_anthropic_without_claude() {
+        let backend = choose_llm_backend(
+            false,
+            Some("openai-key".to_string()),
+            Some("anthropic-key".to_string()),
+        );
+
+        assert_eq!(backend, LlmBackend::OpenAi("openai-key".to_string()));
+    }
+
+    #[test]
+    fn llm_backend_ignores_empty_keys_before_interactive_fallback() {
+        let backend = choose_llm_backend(false, Some("   ".to_string()), Some(String::new()));
+
+        assert_eq!(backend, LlmBackend::Interactive);
     }
 
     #[test]

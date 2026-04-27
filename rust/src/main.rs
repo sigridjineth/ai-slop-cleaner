@@ -1,6 +1,6 @@
-use std::io::Read;
 use clap::{Parser, Subcommand};
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 
 mod pattern_loader;
@@ -69,10 +69,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Rules => {
             println!("Loaded {} banned patterns", scorer.ruleset().patterns.len());
             println!("Loaded {} banned words", scorer.ruleset().words.len());
+            let agent_patterns_path = cli.rules_dir.join("patterns-agent.md");
+            let agent_patterns =
+                Ruleset::load_agent_patterns_from_file(&agent_patterns_path).unwrap_or_default();
+            println!("Loaded {} agent patterns", agent_patterns.len());
             println!();
             println!("Banned Patterns:");
             for p in &scorer.ruleset().patterns {
-                println!("  - {} (severity: {}, weight: {})", p.name, p.severity, p.weight);
+                println!(
+                    "  - {} (scope: {}, severity: {}, weight: {})",
+                    p.name, p.lang_scope, p.severity, p.weight
+                );
             }
             println!();
             println!("Banned Words:");
@@ -80,6 +87,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!(
                     "  - {} (replacement: {:?}, weight: {})",
                     w.word, w.replacement, w.weight
+                );
+            }
+            println!();
+            println!("Agent Patterns:");
+            for p in &agent_patterns {
+                println!(
+                    "  - {} (severity: {}, weight: {}, examples: {}, note: {}, description: {})",
+                    p.name,
+                    p.severity,
+                    p.weight,
+                    p.examples.len(),
+                    p.multilingual_note.as_deref().unwrap_or("none"),
+                    p.description
                 );
             }
         }
@@ -110,9 +130,12 @@ fn print_result(
         }
         _ => {
             println!("AI Slop Score: {:.2}/100", result.overall_score);
-            println!("Matches found: {} (patterns: {}, words: {})", 
+            println!(
+                "Matches found: {} (patterns: {}, words: {})",
                 result.matches.len() + result.word_matches.len(),
-                result.matches.len(), result.word_matches.len());
+                result.matches.len(),
+                result.word_matches.len()
+            );
             for m in &result.matches {
                 println!(
                     "  [{}] {} (weight: {:.1}) - Line {}: {}",

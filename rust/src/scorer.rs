@@ -47,11 +47,10 @@ pub struct Scorer {
     ruleset: Ruleset,
 }
 
-/// The Rust binary only applies universal (language-agnostic) patterns.
-/// Language-specific pattern evaluation is delegated to an LLM agent
-/// via patterns-agent.md. The --lang flag is accepted for CLI compatibility
-/// but has no effect — all loaded patterns are universal scope.
-
+// The Rust binary only applies universal (language-agnostic) patterns.
+// Language-specific pattern evaluation is delegated to an LLM agent
+// via patterns-agent.md. The --lang flag is accepted for CLI compatibility
+// but has no effect — all loaded patterns are universal scope.
 impl Scorer {
     pub fn new(ruleset: Ruleset) -> Self {
         Scorer { ruleset }
@@ -85,8 +84,8 @@ impl Scorer {
 
         // Score structural patterns (all universal — no language filtering needed)
         for pattern in &self.ruleset.patterns {
-            let is_multiline = pattern.regex.as_str().contains("(?m)")
-                || pattern.regex.as_str().contains("\n");
+            let is_multiline =
+                pattern.regex.as_str().contains("(?m)") || pattern.regex.as_str().contains("\n");
             if is_multiline {
                 for mat in pattern.regex.find_iter(text) {
                     let line_num = byte_to_line(mat.start());
@@ -233,6 +232,67 @@ mod tests {
     }
 
     #[test]
+    fn test_plus_conjunction_match_is_tight() {
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
+        let scorer = Scorer::new(ruleset);
+
+        let result = scorer.score(
+            "The draft joins planning + review as if the plus sign were a conjunction.",
+            "all",
+        );
+        let matched = result
+            .matches
+            .iter()
+            .find(|m| m.pattern_name == "plus_conjunction")
+            .map(|m| m.matched_text.as_str());
+
+        assert_eq!(
+            matched,
+            Some("planning + review"),
+            "Plus conjunction should report only the joined terms, not surrounding prose"
+        );
+    }
+
+    #[test]
+    fn test_plus_conjunction_supports_combining_marks() {
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
+        let scorer = Scorer::new(ruleset);
+
+        let result = scorer.score("मसौदा लेखन + समीक्षा को एक ही बंधन की तरह रखता है।", "all");
+        let matched = result
+            .matches
+            .iter()
+            .find(|m| m.pattern_name == "plus_conjunction")
+            .map(|m| m.matched_text.as_str());
+
+        assert_eq!(
+            matched,
+            Some("लेखन + समीक्षा"),
+            "Plus conjunction should include Devanagari combining marks in the matched terms"
+        );
+    }
+
+    #[test]
+    fn test_plus_conjunction_does_not_match_math_or_cplusplus() {
+        let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
+        let scorer = Scorer::new(ruleset);
+
+        let result = scorer.score(
+            "The expression 3+2 is arithmetic, and C++ is a language.",
+            "all",
+        );
+        let has_plus = result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name == "plus_conjunction");
+
+        assert!(
+            !has_plus,
+            "Plus conjunction should not flag arithmetic expressions or C++"
+        );
+    }
+
+    #[test]
     fn test_emoji_detection() {
         let ruleset = Ruleset::load_from_dir("rules").expect("Failed to load rules");
         let scorer = Scorer::new(ruleset);
@@ -251,10 +311,7 @@ mod tests {
         let scorer = Scorer::new(ruleset);
 
         let result = scorer.score("The tool — which is fast — handles everything.", "all");
-        let has_em_dash = result
-            .matches
-            .iter()
-            .any(|m| m.pattern_name == "em_dash");
+        let has_em_dash = result.matches.iter().any(|m| m.pattern_name == "em_dash");
         assert!(has_em_dash, "Should detect em dash decoration");
     }
 
@@ -265,7 +322,7 @@ mod tests {
 
         for pattern in &ruleset.patterns {
             assert!(
-                pattern.regex.as_str().len() > 0,
+                !pattern.regex.as_str().is_empty(),
                 "Pattern '{}' should have valid regex",
                 pattern.name
             );
@@ -281,7 +338,10 @@ mod tests {
 
         // Korean text with emoji
         let result = scorer.score("한국어 텍스트 🚀 좋습니다", "auto");
-        assert!(result.matches.iter().any(|m| m.pattern_name == "emoji_decoration"));
+        assert!(result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name == "emoji_decoration"));
 
         // Japanese text with em dash
         let result = scorer.score("日本語のテスト — テストで���", "auto");
@@ -289,6 +349,9 @@ mod tests {
 
         // Chinese text with plus conjunction
         let result = scorer.score("支持中文 + 英文检���", "auto");
-        assert!(result.matches.iter().any(|m| m.pattern_name == "plus_conjunction"));
+        assert!(result
+            .matches
+            .iter()
+            .any(|m| m.pattern_name == "plus_conjunction"));
     }
 }

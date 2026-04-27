@@ -619,6 +619,78 @@ For each text segment, the agent should:
 
 ---
 
+## Hindi Structural Patterns
+
+### hi_ke_madhyam_se_connector
+- **Severity:** medium
+- **Lang Scope:** hindi
+- **Weight:** 1.0
+- **Description:** Translationese overuse of "के माध्यम से" as a generic through/by connector when a shorter postposition such as "से" or a direct verb would sound more natural.
+- **Examples:**
+  - "इस प्रक्रिया के माध्यम से परिणाम मिलते हैं" → "इस प्रक्रिया से परिणाम मिलते हैं"
+  - "ऐप के माध्यम से संदेश भेजें" → "ऐप से संदेश भेजें"
+- **Multilingual note:** Similar to Korean "~을 통해" and Arabic "من خلال" overuse; flag only when it is a filler connector, not when a real medium/channel is being contrasted.
+
+### hi_sakta_hai_overuse
+- **Severity:** medium
+- **Lang Scope:** hindi
+- **Weight:** 1.0
+- **Description:** Repeated impersonal "किया जा सकता है / देखा जा सकता है / समझा जा सकता है" can-passive phrasing that weakens direct prose.
+- **Examples:**
+  - "इसे बेहतर बनाया जा सकता है" → "इसे बेहतर बनाएं" or "यह बेहतर बनेगा"
+  - "यह देखा जा सकता है कि तरीका काम करता है" → "यह तरीका काम करता है"
+- **Multilingual note:** Comparable to English "can be" padding and Korean "~할 수 있다" overuse.
+
+---
+
+## Arabic Structural Patterns
+
+### ar_min_khilal_connector
+- **Severity:** medium
+- **Lang Scope:** arabic
+- **Weight:** 1.0
+- **Description:** Overuse of "من خلال" as a generic through/by connector when "بـ", "عبر", or a direct verb would be cleaner.
+- **Examples:**
+  - "يتم تحسين النص من خلال حذف الحشو" → "يتحسن النص بحذف الحشو"
+  - "يمكن الوصول من خلال الزر" → "يمكن الوصول عبر الزر"
+- **Multilingual note:** Similar to Hindi "के माध्यम से" and Korean "~을 통해"; do not flag when a literal channel or medium is central to the sentence.
+
+### ar_bishakl_adverbial
+- **Severity:** medium
+- **Lang Scope:** arabic
+- **Weight:** 1.0
+- **Description:** Formulaic "بشكل + adjective" adverbial padding where Arabic can use a direct adverb, adjective, or stronger verb.
+- **Examples:**
+  - "يعمل بشكل سريع" → "يعمل بسرعة"
+  - "يتغير بشكل واضح" → "يتضح التغير" or "يتغير بوضوح"
+- **Multilingual note:** Flag repeated padding, not every valid "بشكل" phrase.
+
+---
+
+## Turkish Structural Patterns
+
+### tr_olarak_adverbial
+- **Severity:** medium
+- **Lang Scope:** turkish
+- **Weight:** 1.0
+- **Description:** Overuse of "olarak" to form abstract adverbial phrases where Turkish can use a suffix, direct adjective, or simpler wording.
+- **Examples:**
+  - "teknik olarak doğru bir çözüm" → "teknik açıdan doğru çözüm" or "doğru teknik çözüm"
+  - "genel olarak kullanıcılar bunu seçer" → "kullanıcılar genelde bunu seçer"
+- **Multilingual note:** Treat as slop when it repeats mechanically or mirrors English "as/technically" phrasing.
+
+### tr_sahip_olmak_calque
+- **Severity:** medium
+- **Lang Scope:** turkish
+- **Weight:** 1.0
+- **Description:** English-like "sahip olmak" possession calque for qualities/features where "var", a suffix, or a direct predicate would be more natural.
+- **Examples:**
+  - "Bu araç hızlı bir yapıya sahiptir" → "Bu araç hızlıdır"
+  - "Ürün birçok özelliğe sahip" → "Ürünün birçok özelliği var"
+- **Multilingual note:** Similar to Korean "가지고 있다" translationese; flag property boilerplate, not real ownership.
+
+---
+
 ## Banned Words (English)
 
 These words should be flagged when used in contexts where simpler alternatives would work better.

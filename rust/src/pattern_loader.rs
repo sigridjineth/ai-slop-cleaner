@@ -64,12 +64,14 @@ impl Ruleset {
             let trimmed = line.trim();
 
             // Pattern header: ### pattern_name
-            if trimmed.starts_with("### ") {
+            if let Some(stripped) = trimmed.strip_prefix("### ") {
                 // Save previous pattern if exists
                 if let Some(p) = current.take() {
-                    patterns.push(p);
+                    if !p.severity.is_empty() || !p.description.is_empty() {
+                        patterns.push(p);
+                    }
                 }
-                let name = trimmed[4..].trim().to_string();
+                let name = stripped.trim().to_string();
                 current = Some(AgentPattern {
                     name,
                     severity: String::new(),
@@ -85,23 +87,23 @@ impl Ruleset {
 
             if let Some(ref mut pat) = current {
                 // Severity: - **Severity:** value
-                if trimmed.starts_with("- **Severity:**") {
-                    pat.severity = trimmed[15..].trim().to_string();
+                if let Some(stripped) = trimmed.strip_prefix("- **Severity:**") {
+                    pat.severity = stripped.trim().to_string();
                     continue;
                 }
                 // Weight: - **Weight:** value
-                if trimmed.starts_with("- **Weight:**") {
-                    pat.weight = trimmed[13..].trim().parse::<f64>().unwrap_or(1.0);
+                if let Some(stripped) = trimmed.strip_prefix("- **Weight:**") {
+                    pat.weight = stripped.trim().parse::<f64>().unwrap_or(1.0);
                     continue;
                 }
                 // Description: - **Description:** value
-                if trimmed.starts_with("- **Description:**") {
-                    pat.description = trimmed[18..].trim().to_string();
+                if let Some(stripped) = trimmed.strip_prefix("- **Description:**") {
+                    pat.description = stripped.trim().to_string();
                     continue;
                 }
                 // Multilingual note
-                if trimmed.starts_with("- **Multilingual note:**") {
-                    pat.multilingual_note = Some(trimmed[24..].trim().to_string());
+                if let Some(stripped) = trimmed.strip_prefix("- **Multilingual note:**") {
+                    pat.multilingual_note = Some(stripped.trim().to_string());
                     in_multilingual_note = true;
                     in_examples = false;
                     continue;
@@ -114,7 +116,11 @@ impl Ruleset {
                 }
                 // Example items
                 if in_examples && (trimmed.starts_with("- ") || trimmed.starts_with("  - ")) {
-                    let example = trimmed.trim_start_matches("- ").trim_start_matches("  - ").trim().to_string();
+                    let example = trimmed
+                        .trim_start_matches("- ")
+                        .trim_start_matches("  - ")
+                        .trim()
+                        .to_string();
                     if !example.is_empty() {
                         pat.examples.push(example);
                     }
@@ -142,7 +148,9 @@ impl Ruleset {
 
         // Don't forget the last pattern
         if let Some(p) = current {
-            patterns.push(p);
+            if !p.severity.is_empty() || !p.description.is_empty() {
+                patterns.push(p);
+            }
         }
 
         Ok(patterns)
@@ -156,10 +164,10 @@ impl Ruleset {
         let mut in_backticks = false;
         let chars: Vec<char> = row.trim().chars().collect();
         let mut i = 0;
-        
+
         while i < chars.len() {
             let c = chars[i];
-            
+
             if c == '`' {
                 in_backticks = !in_backticks;
                 current.push(c);
@@ -173,16 +181,16 @@ impl Ruleset {
             } else {
                 current.push(c);
             }
-            
+
             i += 1;
         }
-        
+
         // Don't forget the last cell
         let trimmed = current.trim().to_string();
         if !trimmed.is_empty() {
             cells.push(trimmed);
         }
-        
+
         cells
     }
 
@@ -238,7 +246,7 @@ impl Ruleset {
 
                     // Remove surrounding backticks from regex if present
                     let regex_str = regex_str.trim_matches('`');
-                    
+
                     // Convert escaped pipes back to real pipes for regex alternation
                     // In markdown we write \| to avoid table conflicts, but regex needs |
                     let regex_str = regex_str.replace("\\|", "|");

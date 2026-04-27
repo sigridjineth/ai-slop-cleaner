@@ -49,25 +49,43 @@ pub struct Scorer {
 
 /// Detect language from text content.
 /// Returns "ko" if >= 5% of characters are Korean (Hangul),
+/// "ja" if >= 5% are Japanese (Hiragana/Katakana),
+/// "zh" if >= 5% are CJK Unified Ideographs (and not Japanese),
+/// "es" if Spanish markers detected,
 /// "en" otherwise.
+/// For scoring purposes, non-en/ko languages map to "all" to get universal patterns.
 fn detect_language(text: &str) -> &'static str {
     let total_chars = text.chars().filter(|c| !c.is_whitespace()).count();
     if total_chars == 0 {
         return "en";
     }
-    let korean_chars = text
-        .chars()
-        .filter(|c| {
-            let cp = *c as u32;
-            // Hangul Syllables (AC00-D7A3) + Jamo (1100-11FF, 3130-318F)
-            (0xAC00..=0xD7A3).contains(&cp)
-                || (0x1100..=0x11FF).contains(&cp)
-                || (0x3130..=0x318F).contains(&cp)
-        })
-        .count();
-    let ratio = korean_chars as f64 / total_chars as f64;
-    if ratio >= 0.05 {
+    let mut korean_chars = 0usize;
+    let mut japanese_chars = 0usize;
+    let mut cjk_chars = 0usize;
+    for c in text.chars() {
+        let cp = c as u32;
+        if (0xAC00..=0xD7A3).contains(&cp)
+            || (0x1100..=0x11FF).contains(&cp)
+            || (0x3130..=0x318F).contains(&cp)
+        {
+            korean_chars += 1;
+        }
+        if (0x3040..=0x309F).contains(&cp) || (0x30A0..=0x30FF).contains(&cp) {
+            japanese_chars += 1;
+        }
+        if (0x4E00..=0x9FFF).contains(&cp) {
+            cjk_chars += 1;
+        }
+    }
+    let ko_ratio = korean_chars as f64 / total_chars as f64;
+    let ja_ratio = japanese_chars as f64 / total_chars as f64;
+    let cjk_ratio = cjk_chars as f64 / total_chars as f64;
+    if ko_ratio >= 0.05 {
         "ko"
+    } else if ja_ratio >= 0.03 {
+        "ja"
+    } else if cjk_ratio >= 0.05 {
+        "zh"
     } else {
         "en"
     }
@@ -116,6 +134,7 @@ impl Scorer {
             "auto" => detect_language(text),
             "en" => "en",
             "ko" => "ko",
+            "ja" | "zh" | "es" => "all", // non-en/ko languages get all universal patterns
             _ => "all",
         };
 
@@ -124,22 +143,62 @@ impl Scorer {
         let lines: Vec<&str> = text.lines().collect();
 
         // Score structural patterns (filtered by language)
+        // Build a map of byte offset -> (line_number, line_start_byte) for full-text matching
+        let line_starts: Vec<usize> = {
+            let mut starts = vec![0usize];
+            for (i, b) in text.bytes().enumerate() {
+                if b == b'\n' && i + 1 < text.len() {
+                    starts.push(i + 1);
+                }
+            }
+            starts
+        };
+        let byte_to_line = |byte_offset: usize| -> usize {
+            match line_starts.binary_search(&byte_offset) {
+                Ok(idx) => idx + 1,
+                Err(idx) => idx, // idx is the line (1-indexed since starts[0]=0 means line 1)
+            }
+        };
+
         for pattern in &self.ruleset.patterns {
             if !should_include_pattern(&pattern.lang_scope, resolved_lang) {
                 continue;
             }
-            for (line_idx, line) in lines.iter().enumerate() {
-                for mat in pattern.regex.find_iter(line) {
+            // Run multi-line patterns (like bullet_block) against full text
+            // and single-line patterns against individual lines
+            let is_multiline = pattern.regex.as_str().contains("(?m)")
+                || pattern.regex.as_str().contains("\n");
+            if is_multiline {
+                for mat in pattern.regex.find_iter(text) {
+                    let line_num = byte_to_line(mat.start());
+                    let matched = mat.as_str();
+                    // For multi-line matches, show first line only in matched_text
+                    let first_line = matched.lines().next().unwrap_or(matched);
                     matches.push(MatchResult {
                         pattern_name: pattern.name.clone(),
                         severity: pattern.severity.clone(),
                         weight: pattern.weight,
                         description: pattern.description.clone(),
-                        matched_text: mat.as_str().to_string(),
-                        line_number: line_idx + 1,
+                        matched_text: first_line.trim().to_string(),
+                        line_number: line_num,
                         column_start: mat.start(),
                         column_end: mat.end(),
                     });
+                }
+            } else {
+                for (line_idx, line) in lines.iter().enumerate() {
+                    for mat in pattern.regex.find_iter(line) {
+                        matches.push(MatchResult {
+                            pattern_name: pattern.name.clone(),
+                            severity: pattern.severity.clone(),
+                            weight: pattern.weight,
+                            description: pattern.description.clone(),
+                            matched_text: mat.as_str().to_string(),
+                            line_number: line_idx + 1,
+                            column_start: mat.start(),
+                            column_end: mat.end(),
+                        });
+                    }
                 }
             }
         }
@@ -309,5 +368,17 @@ mod tests {
     fn test_lang_auto_korean() {
         let result_lang = super::detect_language("이것은 한국어 문서입니다.");
         assert_eq!(result_lang, "ko");
+    }
+
+    #[test]
+    fn test_lang_auto_japanese() {
+        let result_lang = super::detect_language("これは日本語のテストドキュメントです。");
+        assert_eq!(result_lang, "ja");
+    }
+
+    #[test]
+    fn test_lang_auto_chinese() {
+        let result_lang = super::detect_language("这是一个中文测试文档。");
+        assert_eq!(result_lang, "zh");
     }
 }

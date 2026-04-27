@@ -110,11 +110,23 @@ fn print_result(
         }
         _ => {
             println!("AI Slop Score: {:.2}/100", result.overall_score);
-            println!("Matches found: {}", result.matches.len());
+            println!("Matches found: {} (patterns: {}, words: {})", 
+                result.matches.len() + result.word_matches.len(),
+                result.matches.len(), result.word_matches.len());
             for m in &result.matches {
                 println!(
                     "  [{}] {} (weight: {:.1}) - Line {}: {}",
                     m.severity, m.pattern_name, m.weight, m.line_number, m.matched_text
+                );
+            }
+            for w in &result.word_matches {
+                let repl = match &w.replacement {
+                    Some(r) => format!(" -> {}", r),
+                    None => String::new(),
+                };
+                println!(
+                    "  [word] \"{}\"{}  (weight: {:.1}) - Line {}: {}",
+                    w.word, repl, w.weight, w.line_number, w.matched_text
                 );
             }
         }

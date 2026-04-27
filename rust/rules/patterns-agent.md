@@ -536,6 +536,17 @@ For each text segment, the agent should:
 - **Weight:** 0.5
 - **Description:** Overuse of '즉' as a redefining connector.
 
+### example_list_summarize
+- **Severity:** medium
+- **Lang Scope:** universal
+- **Weight:** 1.5
+- **Description:** The mechanical pattern of introducing examples with a phrase like "For example:", "e.g.,", or "예를 들면", following with a bullet list or comma-separated enumeration, and then capping the list with a summarizing connector like "That is,", "In other words:", "i.e.,", or "즉,". This trio forms a predictable AI cadence: signal → enumerate → reframe. Human prose rarely sandwiches a list between an explicit example intro and an explicit summary.
+- **Examples:**
+  - "For example: security-guard checks security, performance-scout checks performance. That is, each agent sees something different."
+  - "예를 들면: A가 있습니다. 그 다음에 B가 있습니다. 즉, 각각은 다릅니다."
+  - "e.g., X, Y, and Z. In other words, they vary."
+- **Multilingual note:** Appears across Korean, English, Chinese, and Japanese AI outputs. The structural rhythm is language-agnostic.
+
 ### ko_I1_geotida
 - **Severity:** high
 - **Lang Scope:** korean
